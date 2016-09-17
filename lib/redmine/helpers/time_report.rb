@@ -45,7 +45,7 @@ module Redmine
         unless @criteria.empty?
           time_columns = %w(tyear tmonth tweek spent_on)
           @hours = []
-          @scope.includes(:issue, :activity).
+          @scope.includes(:activity).
               group(@criteria.collect{|criteria| @available_criteria[criteria][:sql]} + time_columns).
               joins(@criteria.collect{|criteria| @available_criteria[criteria][:joins]}.compact).
               sum(:hours).each do |hash, hours|
@@ -108,7 +108,7 @@ module Redmine
                                               :klass => IssueStatus,
                                               :label => :field_status},
                                  'version' => {:sql => "#{Issue.table_name}.fixed_version_id",
-                                              :klass => Version,
+                                              :klass => ::Version,
                                               :label => :label_version},
                                  'category' => {:sql => "#{Issue.table_name}.category_id",
                                                 :klass => IssueCategory,

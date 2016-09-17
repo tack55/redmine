@@ -19,22 +19,18 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class RoutesHelperTest < ActionView::TestCase
+class RoutesHelperTest < Redmine::HelperTest
   fixtures :projects, :issues
 
   include Rails.application.routes.url_helpers
 
   def test_time_entries_path
     assert_equal '/projects/ecookbook/time_entries', _time_entries_path(Project.find(1), nil)
-    assert_equal '/issues/1/time_entries', _time_entries_path(Project.find(1), Issue.find(1))
-    assert_equal '/issues/1/time_entries', _time_entries_path(nil, Issue.find(1))
     assert_equal '/time_entries', _time_entries_path(nil, nil)
   end
 
   def test_report_time_entries_path
     assert_equal '/projects/ecookbook/time_entries/report', _report_time_entries_path(Project.find(1), nil)
-    assert_equal '/issues/1/time_entries/report', _report_time_entries_path(Project.find(1), Issue.find(1))
-    assert_equal '/issues/1/time_entries/report', _report_time_entries_path(nil, Issue.find(1))
     assert_equal '/time_entries/report', _report_time_entries_path(nil, nil)
   end
 

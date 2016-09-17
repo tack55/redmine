@@ -188,11 +188,7 @@ Rails.application.routes.draw do
       match 'bulk_edit', :via => [:get, :post]
       post 'bulk_update'
     end
-    resources :time_entries, :controller => 'timelog', :except => [:show, :edit, :update, :destroy] do
-      collection do
-        get 'report'
-      end
-    end
+    resources :time_entries, :controller => 'timelog', :only => [:new, :create]
     shallow do
       resources :relations, :controller => 'issue_relations', :only => [:index, :show, :create, :destroy]
     end
@@ -246,13 +242,13 @@ Rails.application.routes.draw do
   post   'projects/:id/repository/:repository_id/revisions/:rev/issues', :to => 'repositories#add_related_issue'
   delete 'projects/:id/repository/:repository_id/revisions/:rev/issues/:issue_id', :to => 'repositories#remove_related_issue'
   get 'projects/:id/repository/:repository_id/revisions', :to => 'repositories#revisions'
-  get 'projects/:id/repository/:repository_id/revisions/:rev/:action(/*path)',
-      :controller => 'repositories',
-      :format => false,
-      :constraints => {
-            :action => /(browse|show|entry|raw|annotate|diff)/,
-            :rev    => /[a-z0-9\.\-_]+/
-          }
+  %w(browse show entry raw annotate diff).each do |action|
+    get "projects/:id/repository/:repository_id/revisions/:rev/#{action}(/*path)",
+        :controller => 'repositories',
+        :action => action,
+        :format => false,
+        :constraints => {:rev => /[a-z0-9\.\-_]+/}
+  end
 
   get 'projects/:id/repository/statistics', :to => 'repositories#stats'
   get 'projects/:id/repository/graph', :to => 'repositories#graph'
@@ -266,21 +262,28 @@ Rails.application.routes.draw do
   get 'projects/:id/repository/revision', :to => 'repositories#revision'
   post   'projects/:id/repository/revisions/:rev/issues', :to => 'repositories#add_related_issue'
   delete 'projects/:id/repository/revisions/:rev/issues/:issue_id', :to => 'repositories#remove_related_issue'
-  get 'projects/:id/repository/revisions/:rev/:action(/*path)',
-      :controller => 'repositories',
-      :format => false,
-      :constraints => {
-            :action => /(browse|show|entry|raw|annotate|diff)/,
-            :rev    => /[a-z0-9\.\-_]+/
-          }
-  get 'projects/:id/repository/:repository_id/:action(/*path)',
-      :controller => 'repositories',
-      :action => /(browse|show|entry|raw|changes|annotate|diff)/,
-      :format => false
-  get 'projects/:id/repository/:action(/*path)',
-      :controller => 'repositories',
-      :action => /(browse|show|entry|raw|changes|annotate|diff)/,
-      :format => false
+  %w(browse show entry raw annotate diff).each do |action|
+    get "projects/:id/repository/revisions/:rev/#{action}(/*path)",
+        :controller => 'repositories',
+        :action => action,
+        :format => false,
+        :constraints => {:rev => /[a-z0-9\.\-_]+/}
+  end
+  %w(browse entry raw changes annotate diff).each do |action|
+    get "projects/:id/repository/:repository_id/#{action}(/*path)",
+        :controller => 'repositories',
+        :action => action,
+        :format => false
+  end
+  %w(browse entry raw changes annotate diff).each do |action|
+    get "projects/:id/repository/#{action}(/*path)",
+        :controller => 'repositories',
+        :action => action,
+        :format => false
+  end
+
+  get 'projects/:id/repository/:repository_id/show/*path', :to => 'repositories#show', :format => false
+  get 'projects/:id/repository/show/*path', :to => 'repositories#show', :format => false
 
   get 'projects/:id/repository/:repository_id', :to => 'repositories#show', :path => nil
   get 'projects/:id/repository', :to => 'repositories#show', :path => nil

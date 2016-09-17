@@ -18,9 +18,9 @@
 class CustomFieldEnumerationsController < ApplicationController
   layout 'admin'
 
-  before_filter :require_admin
-  before_filter :find_custom_field
-  before_filter :find_enumeration, :only => :destroy
+  before_action :require_admin
+  before_action :find_custom_field
+  before_action :find_enumeration, :only => :destroy
 
   helper :custom_fields
 
@@ -29,7 +29,8 @@ class CustomFieldEnumerationsController < ApplicationController
   end
 
   def create
-    @value = @custom_field.enumerations.build(params[:custom_field_enumeration])
+    @value = @custom_field.enumerations.build
+    @value.safe_attributes = params[:custom_field_enumeration]
     @value.save
     respond_to do |format|
       format.html { redirect_to custom_field_enumerations_path(@custom_field) }
@@ -38,7 +39,10 @@ class CustomFieldEnumerationsController < ApplicationController
   end
 
   def update_each
-    if CustomFieldEnumeration.update_each(@custom_field, params[:custom_field_enumerations])
+    saved = CustomFieldEnumeration.update_each(@custom_field, params[:custom_field_enumerations]) do |enumeration, enumeration_attributes|
+      enumeration.safe_attributes = enumeration_attributes
+    end
+    if saved
       flash[:notice] = l(:notice_successful_update)
     end
     redirect_to :action => 'index'

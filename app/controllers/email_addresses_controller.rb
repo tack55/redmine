@@ -16,8 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class EmailAddressesController < ApplicationController
-  before_filter :find_user, :require_admin_or_current_user
-  before_filter :find_email_address, :only => [:update, :destroy]
+  before_action :find_user, :require_admin_or_current_user
+  before_action :find_email_address, :only => [:update, :destroy]
   require_sudo_mode :create, :update, :destroy
 
   def index
@@ -29,10 +29,7 @@ class EmailAddressesController < ApplicationController
     saved = false
     if @user.email_addresses.count <= Setting.max_additional_emails.to_i
       @address = EmailAddress.new(:user => @user, :is_default => false)
-      attrs = params[:email_address]
-      if attrs.is_a?(Hash)
-        @address.address = attrs[:address].to_s
-      end
+      @address.safe_attributes = params[:email_address]
       saved = @address.save
     end
 

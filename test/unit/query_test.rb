@@ -95,7 +95,7 @@ class QueryTest < ActiveSupport::TestCase
     Version.find(2).update_attribute :sharing, 'system'
     query = IssueQuery.new(:project => nil, :name => '_')
     assert query.available_filters.has_key?('fixed_version_id')
-    assert query.available_filters['fixed_version_id'][:values].detect {|v| v.last == '2'}
+    assert query.available_filters['fixed_version_id'][:values].detect {|v| v[1] == '2'}
   end
 
   def test_project_filter_in_global_queries
@@ -146,7 +146,7 @@ class QueryTest < ActiveSupport::TestCase
     query = IssueQuery.new(:project => Project.find(1), :name => '_')
     filter = query.available_filters["fixed_version_id"]
     assert_not_nil filter
-    assert_include subproject_version.id.to_s, filter[:values].map(&:last)
+    assert_include subproject_version.id.to_s, filter[:values].map(&:second)
   end
 
   def test_query_with_multiple_custom_fields
@@ -235,12 +235,20 @@ class QueryTest < ActiveSupport::TestCase
     assert_equal 2, issues.first.id
   end
 
-  def test_operator_is_on_integer_should_accept_comma_separated_values
+  def test_operator_is_on_issue_id_should_accept_comma_separated_values
     query = IssueQuery.new(:name => '_')
     query.add_filter("issue_id", '=', ['1,3'])
     issues = find_issues_with_query(query)
     assert_equal 2, issues.size
     assert_equal [1,3], issues.map(&:id).sort
+  end
+
+  def test_operator_between_on_issue_id_should_return_range
+    query = IssueQuery.new(:name => '_')
+    query.add_filter("issue_id", '><', ['2','3'])
+    issues = find_issues_with_query(query)
+    assert_equal 2, issues.size
+    assert_equal [2,3], issues.map(&:id).sort
   end
 
   def test_operator_is_on_integer_custom_field

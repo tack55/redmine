@@ -19,7 +19,7 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class ApplicationHelperTest < ActionView::TestCase
+class ApplicationHelperTest < Redmine::HelperTest
   include Redmine::I18n
   include ERB::Util
   include Rails.application.routes.url_helpers
@@ -1537,5 +1537,10 @@ RAW
     result = truncate_single_line_raw("#{ja}\n#{ja}\n#{ja}", 10)
     assert_equal "#{ja} #{ja}...", result
     assert !result.html_safe?
+  end
+
+  def test_back_url_should_remove_utf8_checkmark_from_referer
+    stubs(:request).returns(stub(:env => {'HTTP_REFERER' => "/path?utf8=\u2713&foo=bar"}))
+    assert_equal "/path?foo=bar", back_url
   end
 end

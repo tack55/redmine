@@ -29,6 +29,14 @@ module RoutesHelper
     end
   end
 
+  def _project_news_path(project, *args)
+    if project
+      project_news_index_path(project, *args)
+    else
+      news_index_path(*args)
+    end
+  end
+
   def _new_project_issue_path(project, *args)
     if project
       new_project_issue_path(project, *args)
@@ -46,9 +54,7 @@ module RoutesHelper
   end
 
   def _time_entries_path(project, issue, *args)
-    if issue
-      issue_time_entries_path(issue, *args)
-    elsif project
+    if project
       project_time_entries_path(project, *args)
     else
       time_entries_path(*args)
@@ -56,9 +62,7 @@ module RoutesHelper
   end
 
   def _report_time_entries_path(project, issue, *args)
-    if issue
-      report_issue_time_entries_path(issue, *args)
-    elsif project
+    if project
       report_project_time_entries_path(project, *args)
     else
       report_time_entries_path(*args)

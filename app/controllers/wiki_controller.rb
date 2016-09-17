@@ -31,11 +31,11 @@
 # TODO: still being worked on
 class WikiController < ApplicationController
   default_search_scope :wiki_pages
-  before_filter :find_wiki, :authorize
-  before_filter :find_existing_or_new_page, :only => [:show, :edit, :update]
-  before_filter :find_existing_page, :only => [:rename, :protect, :history, :diff, :annotate, :add_attachment, :destroy, :destroy_version]
+  before_action :find_wiki, :authorize
+  before_action :find_existing_or_new_page, :only => [:show, :edit, :update]
+  before_action :find_existing_page, :only => [:rename, :protect, :history, :diff, :annotate, :add_attachment, :destroy, :destroy_version]
+  before_action :find_attachments, :only => [:preview]
   accept_api_auth :index, :show, :update, :destroy
-  before_filter :find_attachments, :only => [:preview]
 
   helper :attachments
   include AttachmentsHelper
@@ -62,10 +62,12 @@ class WikiController < ApplicationController
 
   def new
     @page = WikiPage.new(:wiki => @wiki, :title => params[:title])
-    unless User.current.allowed_to?(:edit_wiki_pages, @project) && editable?
+    unless User.current.allowed_to?(:edit_wiki_pages, @project)
       render_403
+      return
     end
     if request.post?
+      @page.title = '' unless editable?
       @page.validate
       if @page.errors[:title].blank?
         path = project_wiki_page_path(@project, @page.title)
@@ -93,6 +95,9 @@ class WikiController < ApplicationController
       end
       return
     end
+
+    call_hook :controller_wiki_show_before_render, content: @content, format: params[:format]
+
     if User.current.allowed_to?(:export_wiki_pages, @project)
       if params[:format] == 'pdf'
         send_file_headers! :type => 'application/pdf', :filename => "#{@page.title}.pdf"

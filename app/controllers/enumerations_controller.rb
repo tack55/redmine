@@ -18,10 +18,10 @@
 class EnumerationsController < ApplicationController
   layout 'admin'
 
-  before_filter :require_admin, :except => :index
-  before_filter :require_admin_or_api_request, :only => :index
-  before_filter :build_new_enumeration, :only => [:new, :create]
-  before_filter :find_enumeration, :only => [:edit, :update, :destroy]
+  before_action :require_admin, :except => :index
+  before_action :require_admin_or_api_request, :only => :index
+  before_action :build_new_enumeration, :only => [:new, :create]
+  before_action :find_enumeration, :only => [:edit, :update, :destroy]
   accept_api_auth :index
 
   helper :custom_fields
@@ -62,12 +62,12 @@ class EnumerationsController < ApplicationController
           flash[:notice] = l(:notice_successful_update)
           redirect_to enumerations_path
         }
-        format.js { render :nothing => true }
+        format.js { head 200 }
       end
     else
       respond_to do |format|
         format.html { render :action => 'edit' }
-        format.js { render :nothing => true, :status => 422 }
+        format.js { head 422 }
       end
     end
   end

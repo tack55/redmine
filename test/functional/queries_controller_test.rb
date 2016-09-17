@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class QueriesControllerTest < ActionController::TestCase
+class QueriesControllerTest < Redmine::ControllerTest
   fixtures :projects, :users, :members, :member_roles, :roles, :trackers, :issue_statuses, :issue_categories, :enumerations, :issues, :custom_fields, :custom_values, :queries, :enabled_modules
 
   def setup
@@ -34,7 +34,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 2
     get :new, :project_id => 1
     assert_response :success
-    assert_template 'new'
+
     assert_select 'input[name=?][value="0"][checked=checked]', 'query[visibility]'
     assert_select 'input[name=query_is_for_all][type=checkbox]:not([checked]):not([disabled])'
     assert_select 'select[name=?]', 'c[]' do
@@ -47,7 +47,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 2
     get :new
     assert_response :success
-    assert_template 'new'
+
     assert_select 'input[name=?]', 'query[visibility]', 0
     assert_select 'input[name=query_is_for_all][type=checkbox][checked]:not([disabled])'
   end
@@ -56,6 +56,13 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 2
     get :new, :project_id => 'invalid'
     assert_response 404
+  end
+
+  def test_new_time_entry_query
+    @request.session[:user_id] = 2
+    get :new, :project_id => 1, :type => 'TimeEntryQuery'
+    assert_response :success
+    assert_select 'input[name=type][value=?]', 'TimeEntryQuery'
   end
 
   def test_create_project_public_query
@@ -162,7 +169,7 @@ class QueriesControllerTest < ActionController::TestCase
       post :create, :project_id => 'ecookbook', :query => {:name => ''}
     end
     assert_response :success
-    assert_template 'new'
+
     assert_select 'input[name=?]', 'query[name]'
   end
 
@@ -263,11 +270,31 @@ class QueriesControllerTest < ActionController::TestCase
     assert_equal Query::VISIBILITY_PUBLIC, query.visibility
   end
 
+  def test_create_project_public_time_entry_query
+    @request.session[:user_id] = 2
+
+    q = new_record(TimeEntryQuery) do
+      post :create,
+           :project_id => 'ecookbook',
+           :type => 'TimeEntryQuery',
+           :default_columns => '1',
+           :f => ["spent_on"],
+           :op => {"spent_on" => "="},
+           :v => { "spent_on" => ["2016-07-14"]},
+           :query => {"name" => "test_new_project_public_query", "visibility" => "2"}
+    end
+
+    assert_redirected_to :controller => 'timelog', :action => 'index', :project_id => 'ecookbook', :query_id => q.id
+    assert q.is_public?
+    assert q.has_default_columns?
+    assert q.valid?
+  end
+
   def test_edit_global_public_query
     @request.session[:user_id] = 1
     get :edit, :id => 4
     assert_response :success
-    assert_template 'edit'
+
     assert_select 'input[name=?][value="2"][checked=checked]', 'query[visibility]'
     assert_select 'input[name=query_is_for_all][type=checkbox][checked=checked]'
   end
@@ -276,7 +303,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 3
     get :edit, :id => 3
     assert_response :success
-    assert_template 'edit'
+
     assert_select 'input[name=?]', 'query[visibility]', 0
     assert_select 'input[name=query_is_for_all][type=checkbox][checked=checked]'
   end
@@ -285,7 +312,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 3
     get :edit, :id => 2
     assert_response :success
-    assert_template 'edit'
+
     assert_select 'input[name=?]', 'query[visibility]', 0
     assert_select 'input[name=query_is_for_all][type=checkbox]:not([checked])'
   end
@@ -294,7 +321,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 2
     get :edit, :id => 1
     assert_response :success
-    assert_template 'edit'
+
     assert_select 'input[name=?][value="2"][checked=checked]', 'query[visibility]'
     assert_select 'input[name=query_is_for_all][type=checkbox]:not([checked])'
   end
@@ -303,7 +330,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 1
     get :edit, :id => 5
     assert_response :success
-    assert_template 'edit'
+
     assert_select 'select[name=?]', 'query[sort_criteria][0][]' do
       assert_select 'option[value=priority][selected=selected]'
       assert_select 'option[value=desc][selected=selected]'
@@ -354,7 +381,7 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 1
     put :update, :id => 4, :query => {:name => ''}
     assert_response :success
-    assert_template 'edit'
+    assert_select_error /Name cannot be blank/
   end
 
   def test_destroy
@@ -368,7 +395,6 @@ class QueriesControllerTest < ActionController::TestCase
     @request.session[:user_id] = 2
     get :new, :subject => 'foo/bar'
     assert_response :success
-    assert_template 'new'
     assert_include 'addFilter("subject", "=", ["foo\/bar"]);', response.body
   end
 end

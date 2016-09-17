@@ -40,7 +40,6 @@ class IssuesTest < Redmine::IntegrationTest
 
     get '/projects/ecookbook/issues/new'
     assert_response :success
-    assert_template 'issues/new'
 
     issue = new_record(Issue) do
       post '/projects/ecookbook/issues',
@@ -58,7 +57,6 @@ class IssuesTest < Redmine::IntegrationTest
     # check redirection
     assert_redirected_to :controller => 'issues', :action => 'show', :id => issue
     follow_redirect!
-    assert_equal issue, assigns(:issue)
 
     # check issue attributes
     assert_equal 'jsmith', issue.author.login
@@ -123,7 +121,7 @@ class IssuesTest < Redmine::IntegrationTest
     get '/issues', :project_id => 'ecookbook'
 
     %w(Atom PDF CSV).each do |format|
-      assert_select 'a[rel=nofollow][href=?]', "/projects/ecookbook/issues.#{format.downcase}", :text => format
+      assert_select 'a[rel=nofollow][href=?]', "/issues.#{format.downcase}?project_id=ecookbook", :text => format
     end
   end
 
@@ -135,18 +133,44 @@ class IssuesTest < Redmine::IntegrationTest
     end
   end
 
-  def test_pagination_links_on_index_without_project_id_in_url
+  def test_pagination_links_should_preserve_query_parameters
     with_settings :per_page_options => '2' do
-      get '/issues', :project_id => 'ecookbook'
-  
-      assert_select 'a[href=?]', '/projects/ecookbook/issues?page=2', :text => '2'
+      get '/projects/ecookbook/issues?foo=bar'
+
+      assert_select 'a[href=?]', '/projects/ecookbook/issues?foo=bar&page=2', :text => '2'
     end
+  end
+
+  def test_pagination_links_should_not_use_params_as_url_options
+    with_settings :per_page_options => '2' do
+      get '/projects/ecookbook/issues?host=foo'
+
+      assert_select 'a[href=?]', '/projects/ecookbook/issues?host=foo&page=2', :text => '2'
+    end
+  end
+
+  def test_sort_links_on_index
+    get '/projects/ecookbook/issues'
+
+    assert_select 'a[href=?]', '/projects/ecookbook/issues?sort=subject%2Cid%3Adesc', :text => 'Subject'
+  end
+
+  def test_sort_links_should_preserve_query_parameters
+    get '/projects/ecookbook/issues?foo=bar'
+
+    assert_select 'a[href=?]', '/projects/ecookbook/issues?foo=bar&sort=subject%2Cid%3Adesc', :text => 'Subject'
+  end
+
+  def test_sort_links_should_not_use_params_as_url_options
+    get '/projects/ecookbook/issues?host=foo'
+
+    assert_select 'a[href=?]', '/projects/ecookbook/issues?host=foo&sort=subject%2Cid%3Adesc', :text => 'Subject'
   end
 
   def test_issue_with_user_custom_field
     @field = IssueCustomField.create!(:name => 'Tester', :field_format => 'user', :is_for_all => true, :trackers => Tracker.all)
     Role.anonymous.add_permission! :add_issues, :edit_issues
-    users = Project.find(1).users.uniq.sort
+    users = Project.find(1).users.sort
     tester = users.first
 
     # Issue form

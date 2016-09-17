@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class SysControllerTest < ActionController::TestCase
+class SysControllerTest < Redmine::ControllerTest
   fixtures :projects, :repositories, :enabled_modules
 
   def setup
@@ -48,9 +48,11 @@ class SysControllerTest < ActionController::TestCase
   def test_create_project_repository
     assert_nil Project.find(4).repository
 
-    post :create_project_repository, :id => 4,
-                                     :vendor => 'Subversion',
-                                     :repository => { :url => 'file:///create/project/repository/subproject2'}
+    post :create_project_repository, :params => {
+      :id => 4,
+      :vendor => 'Subversion',
+      :repository => { :url => 'file:///create/project/repository/subproject2'}
+    }
     assert_response :created
     assert_equal 'application/xml', @response.content_type
 
@@ -67,18 +69,20 @@ class SysControllerTest < ActionController::TestCase
   end
 
   def test_create_already_existing
-    post :create_project_repository, :id => 1,
+    post :create_project_repository, :params => {
+      :id => 1,
       :vendor => 'Subversion',
       :repository => { :url => 'file:///create/project/repository/subproject2'}
-
+    }
     assert_response :conflict
   end
 
   def test_create_with_failure
-    post :create_project_repository, :id => 4,
+    post :create_project_repository, :params => {
+      :id => 4,
       :vendor => 'Subversion',
       :repository => { :url => 'invalid url'}
-
+    }
     assert_response :unprocessable_entity
   end
 
@@ -90,18 +94,18 @@ class SysControllerTest < ActionController::TestCase
 
   def test_fetch_changesets_one_project_by_identifier
     Repository::Subversion.any_instance.expects(:fetch_changesets).once.returns(true)
-    get :fetch_changesets, :id => 'ecookbook'
+    get :fetch_changesets, :params => {:id => 'ecookbook'}
     assert_response :success
   end
 
   def test_fetch_changesets_one_project_by_id
     Repository::Subversion.any_instance.expects(:fetch_changesets).once.returns(true)
-    get :fetch_changesets, :id => '1'
+    get :fetch_changesets, :params => {:id => '1'}
     assert_response :success
   end
 
   def test_fetch_changesets_unknown_project
-    get :fetch_changesets, :id => 'unknown'
+    get :fetch_changesets, :params => {:id => 'unknown'}
     assert_response 404
   end
 
@@ -109,20 +113,22 @@ class SysControllerTest < ActionController::TestCase
     with_settings :sys_api_enabled => '0' do
       get :projects
       assert_response 403
+      assert_include 'Access denied', response.body
     end
   end
 
   def test_api_key
     with_settings :sys_api_key => 'my_secret_key' do
-      get :projects, :key => 'my_secret_key'
+      get :projects, :params => {:key => 'my_secret_key'}
       assert_response :success
     end
   end
 
   def test_wrong_key_should_respond_with_403_error
     with_settings :sys_api_enabled => 'my_secret_key' do
-      get :projects, :key => 'wrong_key'
+      get :projects, :params => {:key => 'wrong_key'}
       assert_response 403
+      assert_include 'Access denied', response.body
     end
   end
 end

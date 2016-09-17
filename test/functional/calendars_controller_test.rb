@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class CalendarsControllerTest < ActionController::TestCase
+class CalendarsControllerTest < Redmine::ControllerTest
   fixtures :projects,
            :trackers,
            :projects_trackers,
@@ -34,22 +34,19 @@ class CalendarsControllerTest < ActionController::TestCase
   def test_show
     get :show, :project_id => 1
     assert_response :success
-    assert_template :partial => '_calendar'
-    assert_not_nil assigns(:calendar)
   end
 
   def test_show_should_run_custom_queries
-    @query = IssueQuery.create!(:name => 'Calendar', :visibility => IssueQuery::VISIBILITY_PUBLIC)
+    @query = IssueQuery.create!(:name => 'Calendar Query', :visibility => IssueQuery::VISIBILITY_PUBLIC)
 
     get :show, :query_id => @query.id
     assert_response :success
+    assert_select 'h2', :text => 'Calendar Query'
   end
 
   def test_cross_project_calendar
     get :show
     assert_response :success
-    assert_template :partial => '_calendar'
-    assert_not_nil assigns(:calendar)
   end
 
   def test_week_number_calculation

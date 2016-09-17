@@ -19,10 +19,11 @@ require 'csv'
 
 class ImportsController < ApplicationController
 
-  before_filter :find_import, :only => [:show, :settings, :mapping, :run]
-  before_filter :authorize_global
+  before_action :find_import, :only => [:show, :settings, :mapping, :run]
+  before_action :authorize_global
 
   helper :issues
+  helper :queries
 
   def new
   end

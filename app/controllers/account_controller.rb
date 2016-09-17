@@ -20,7 +20,7 @@ class AccountController < ApplicationController
   include CustomFieldsHelper
 
   # prevents login action to be filtered by check_if_login_required application scope filter
-  skip_before_filter :check_if_login_required, :check_password_change
+  skip_before_action :check_if_login_required, :check_password_change
 
   # Overrides ApplicationController#verify_authenticity_token to disable
   # token verification on openid callbacks
@@ -123,7 +123,7 @@ class AccountController < ApplicationController
       user_params = params[:user] || {}
       @user = User.new
       @user.safe_attributes = user_params
-      @user.pref.attributes = params[:pref] if params[:pref]
+      @user.pref.safe_attributes = params[:pref]
       @user.admin = false
       @user.register
       if session[:auth_source_registration]
@@ -137,7 +137,6 @@ class AccountController < ApplicationController
           redirect_to my_account_path
         end
       else
-        @user.login = params[:user][:login]
         unless user_params[:identity_url].present? && user_params[:password].blank? && user_params[:password_confirmation].blank?
           @user.password, @user.password_confirmation = user_params[:password], user_params[:password_confirmation]
         end

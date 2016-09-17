@@ -16,10 +16,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class JournalsController < ApplicationController
-  before_filter :find_journal, :only => [:edit, :update, :diff]
-  before_filter :find_issue, :only => [:new]
-  before_filter :find_optional_project, :only => [:index]
-  before_filter :authorize, :only => [:new, :edit, :update, :diff]
+  before_action :find_journal, :only => [:edit, :update, :diff]
+  before_action :find_issue, :only => [:new]
+  before_action :find_optional_project, :only => [:index]
+  before_action :authorize, :only => [:new, :edit, :update, :diff]
   accept_rss_auth :index
   menu_item :issues
 
@@ -90,7 +90,8 @@ class JournalsController < ApplicationController
 
   def update
     (render_403; return false) unless @journal.editable_by?(User.current)
-    @journal.update_attributes(:notes => params[:notes]) if params[:notes]
+    @journal.safe_attributes = params[:journal]
+    @journal.save
     @journal.destroy if @journal.details.empty? && @journal.notes.blank?
     call_hook(:controller_journals_edit_post, { :journal => @journal, :params => params})
     respond_to do |format|

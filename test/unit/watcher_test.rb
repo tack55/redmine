@@ -60,6 +60,15 @@ class WatcherTest < ActiveSupport::TestCase
     assert_kind_of User, watcher_users.first
   end
 
+  def test_watcher_users_should_be_reloaded_after_adding_a_watcher
+    issue = Issue.find(2)
+    user = User.generate!
+
+    assert_difference 'issue.watcher_users.to_a.size' do
+      issue.add_watcher user
+    end
+  end
+
   def test_watcher_users_should_not_validate_user
     User.where(:id => 1).update_all("firstname = ''")
     @user.reload
@@ -141,7 +150,7 @@ class WatcherTest < ActiveSupport::TestCase
   end
 
   def test_prune_with_user
-    Watcher.delete_all("user_id = 9")
+    Watcher.where("user_id = 9").delete_all
     user = User.find(9)
 
     # public

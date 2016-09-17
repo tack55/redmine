@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class ImportsControllerTest < ActionController::TestCase
+class ImportsControllerTest < Redmine::ControllerTest
   fixtures :projects, :enabled_modules,
            :users, :email_addresses,
            :roles, :members, :member_roles,
@@ -44,7 +44,6 @@ class ImportsControllerTest < ActionController::TestCase
   def test_new_should_display_the_upload_form
     get :new
     assert_response :success
-    assert_template 'new'
     assert_select 'input[name=?]', 'file'
   end
 
@@ -62,7 +61,10 @@ class ImportsControllerTest < ActionController::TestCase
     import = generate_import
     get :settings, :id => import.to_param
     assert_response :success
-    assert_template 'settings'
+    assert_select 'select[name=?]', 'import_settings[separator]'
+    assert_select 'select[name=?]', 'import_settings[wrapper]'
+    assert_select 'select[name=?]', 'import_settings[encoding]'
+    assert_select 'select[name=?]', 'import_settings[date_format]'
   end
 
   def test_post_settings_should_update_settings
@@ -107,7 +109,6 @@ class ImportsControllerTest < ActionController::TestCase
 
     get :mapping, :id => import.to_param
     assert_response :success
-    assert_template 'mapping'
 
     assert_select 'select[name=?]', 'import_settings[mapping][subject]' do
       assert_select 'option', 4
@@ -139,7 +140,7 @@ class ImportsControllerTest < ActionController::TestCase
 
     get :run, :id => import
     assert_response :success
-    assert_template 'run'
+    assert_select '#import-progress'
   end
  
   def test_post_run_should_import_the_file
@@ -183,7 +184,7 @@ class ImportsControllerTest < ActionController::TestCase
 
     get :show, :id => import.to_param
     assert_response :success
-    assert_template 'show'
+
     assert_select 'ul#saved-items'
     assert_select 'ul#saved-items li', import.saved_items.count
     assert_select 'table#unsaved-items', 0
@@ -197,7 +198,7 @@ class ImportsControllerTest < ActionController::TestCase
 
     get :show, :id => import.to_param
     assert_response :success
-    assert_template 'show'
+
     assert_select 'table#unsaved-items'
     assert_select 'table#unsaved-items tbody tr', import.unsaved_items.count
   end

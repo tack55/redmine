@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class SearchController < ApplicationController
-  before_filter :find_optional_project
+  before_action :find_optional_project
   accept_api_auth :index
 
   def index
@@ -68,7 +68,7 @@ class SearchController < ApplicationController
     fetcher = Redmine::Search::Fetcher.new(
       @question, User.current, @scope, projects_to_search,
       :all_words => @all_words, :titles_only => @titles_only, :attachments => @search_attachments, :open_issues => @open_issues,
-      :cache => params[:page].present?
+      :cache => params[:page].present?, :params => params
     )
 
     if fetcher.tokens.present?

@@ -17,10 +17,11 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class GroupsHelperTest < ActionView::TestCase
+class GroupsHelperTest < Redmine::HelperTest
   include Redmine::I18n
   include ERB::Util
   include GroupsHelper
+  include Rails.application.routes.url_helpers
 
   fixtures :users
 

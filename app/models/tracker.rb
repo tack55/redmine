@@ -16,6 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class Tracker < ActiveRecord::Base
+  include Redmine::SafeAttributes
 
   CORE_FIELDS_UNDISABLABLE = %w(project_id tracker_id subject description priority_id is_private).freeze
   # Fields that can be disabled
@@ -46,6 +47,37 @@ class Tracker < ActiveRecord::Base
   scope :sorted, lambda { order(:position) }
   scope :named, lambda {|arg| where("LOWER(#{table_name}.name) = LOWER(?)", arg.to_s.strip)}
 
+  # Returns the trackers that are visible by the user.
+  #
+  # Examples:
+  #   project.trackers.visible(user)
+  #   => returns the trackers that are visible by the user in project
+  #
+  #   Tracker.visible(user)
+  #   => returns the trackers that are visible by the user in at least on project
+  scope :visible, lambda {|*args|
+    user = args.shift || User.current
+    condition = Project.allowed_to_condition(user, :view_issues) do |role, user|
+      unless role.permissions_all_trackers?(:view_issues)
+        tracker_ids = role.permissions_tracker_ids(:view_issues)
+        if tracker_ids.any?
+          "#{Tracker.table_name}.id IN (#{tracker_ids.join(',')})"
+        else
+          '1=0'
+        end
+      end
+    end
+    joins(:projects).where(condition).distinct
+  }
+
+  safe_attributes 'name',
+    'default_status_id',
+    'is_in_roadmap',
+    'core_fields',
+    'position',
+    'custom_field_ids',
+    'project_ids'
+
   def to_s; name end
 
   def <=>(tracker)
@@ -62,7 +94,7 @@ class Tracker < ActiveRecord::Base
     if new_record?
       []
     else
-      @issue_status_ids ||= WorkflowTransition.where(:tracker_id => id).uniq.pluck(:old_status_id, :new_status_id).flatten.uniq
+      @issue_status_ids ||= WorkflowTransition.where(:tracker_id => id).distinct.pluck(:old_status_id, :new_status_id).flatten.uniq
     end
   end
 

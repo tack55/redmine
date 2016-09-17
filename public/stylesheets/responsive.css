@@ -25,7 +25,7 @@
   add first breakpoint here and start adding responsiveness
 */
 
-@media all and (max-width: 899px)
+@media screen and (max-width: 899px)
 {
   /*----------------------------------------*\
     A) BASIC MOBILE RESETS
@@ -739,6 +739,7 @@
 
   #issue_tree .issue > td.subject, #relations .issue > td.subject {
     width: 100% !important; /* let subject have one full width column */
+    word-break: break-word; /* break word if subject is too long */
   }
 
   #issue_tree .issue > td:not(.checkbox), #relations .issue > td:not(.checkbox) {
@@ -787,9 +788,12 @@
 }
 
 @media all and (max-width: 599px) {
+  span.pagination {text-align:center;}
   .pagination ul.pages li {display:none;}
   .pagination ul.pages li.current,
   .pagination ul.pages li.previous,
   .pagination ul.pages li.next {display:inline-block; width:32%; overflow:hidden;}
+
+  #login-form {width:100%; margin-top:2em;}
 }
 

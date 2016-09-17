@@ -183,8 +183,8 @@ en:
   notice_account_deleted: "Your account has been permanently deleted."
   notice_user_successful_create: "User %{id} created."
   notice_new_password_must_be_different: The new password must be different from the current password
-  notice_import_finished: "All %{count} items have been imported."
-  notice_import_finished_with_errors: "%{count} out of %{total} items could not be imported."
+  notice_import_finished: "%{count} items have been imported"
+  notice_import_finished_with_errors: "%{count} out of %{total} items could not be imported"
 
   error_can_t_load_default_data: "Default configuration could not be loaded: %{value}"
   error_scm_not_found: "The entry or revision was not found in the repository."
@@ -214,6 +214,7 @@ en:
   error_attachment_extension_not_allowed: "Attachment extension %{extension} is not allowed"
   error_ldap_bind_credentials: "Invalid LDAP Account/Password"
   error_no_tracker_allowed_for_new_issue_in_project: "The project doesn't have any trackers for which you can create an issue"
+  error_no_projects_with_tracker_allowed_for_new_issue: "There are no projects with trackers for which you can create an issue"
 
   mail_subject_lost_password: "Your %{value} password"
   mail_body_lost_password: 'To change your password, click on the following link:'
@@ -363,6 +364,7 @@ en:
   field_total_estimated_hours: Total estimated time
   field_default_version: Default version
   field_remote_ip: IP address
+  field_textarea_font: Font used for text areas
 
   setting_app_title: Application title
   setting_app_subtitle: Application subtitle
@@ -997,6 +999,9 @@ en:
   label_relations: Relations
   label_new_project_issue_tab_enabled: Display the "New issue" tab
   label_new_object_tab_enabled: Display the "+" drop-down
+  label_font_default: Default font
+  label_font_monospace: Monospaced font
+  label_font_proportional: Proportional font
 
   button_login: Login
   button_submit: Submit

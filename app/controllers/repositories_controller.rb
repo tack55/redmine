@@ -28,11 +28,11 @@ class RepositoriesController < ApplicationController
   menu_item :settings, :only => [:new, :create, :edit, :update, :destroy, :committers]
   default_search_scope :changesets
 
-  before_filter :find_project_by_project_id, :only => [:new, :create]
-  before_filter :find_repository, :only => [:edit, :update, :destroy, :committers]
-  before_filter :find_project_repository, :except => [:new, :create, :edit, :update, :destroy, :committers]
-  before_filter :find_changeset, :only => [:revision, :add_related_issue, :remove_related_issue]
-  before_filter :authorize
+  before_action :find_project_by_project_id, :only => [:new, :create]
+  before_action :find_repository, :only => [:edit, :update, :destroy, :committers]
+  before_action :find_project_repository, :except => [:new, :create, :edit, :update, :destroy, :committers]
+  before_action :find_changeset, :only => [:revision, :add_related_issue, :remove_related_issue]
+  before_action :authorize
   accept_rss_auth :revisions
 
   rescue_from Redmine::Scm::Adapters::CommandFailed, :with => :show_error_command_failed
@@ -116,7 +116,7 @@ class RepositoriesController < ApplicationController
     @entries = @repository.entries(@path, @rev)
     @changeset = @repository.find_changeset_by_name(@rev)
     if request.xhr?
-      @entries ? render(:partial => 'dir_list_content') : render(:nothing => true)
+      @entries ? render(:partial => 'dir_list_content') : head(200)
     else
       (show_error_not_found; return) unless @entries
       @changesets = @repository.latest_changesets(@path, @rev)
@@ -211,14 +211,17 @@ class RepositoriesController < ApplicationController
 
     @annotate = @repository.scm.annotate(@path, @rev)
     if @annotate.nil? || @annotate.empty?
-      (render_error l(:error_scm_annotate); return)
-    end
-    ann_buf_size = 0
-    @annotate.lines.each do |buf|
-      ann_buf_size += buf.size
-    end
-    if ann_buf_size > Setting.file_max_size_displayed.to_i.kilobyte
-      (render_error l(:error_scm_annotate_big_text_file); return)
+      @annotate = nil
+      @error_message = l(:error_scm_annotate)
+    else
+      ann_buf_size = 0
+      @annotate.lines.each do |buf|
+        ann_buf_size += buf.size
+      end
+      if ann_buf_size > Setting.file_max_size_displayed.to_i.kilobyte
+        @annotate = nil
+        @error_message = l(:error_scm_annotate_big_text_file)
+      end
     end
     @changeset = @repository.find_changeset_by_name(@rev)
   end

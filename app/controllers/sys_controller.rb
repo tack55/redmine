@@ -16,7 +16,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class SysController < ActionController::Base
-  before_filter :check_enabled
+  before_action :check_enabled
 
   def projects
     p = Project.active.has_module(:repository).
@@ -31,7 +31,7 @@ class SysController < ActionController::Base
   def create_project_repository
     project = Project.find(params[:id])
     if project.repository
-      render :nothing => true, :status => 409
+      head 409
     else
       logger.info "Repository for #{project.name} was reported to be created by #{request.remote_ip}."
       repository = Repository.factory(params[:vendor], params[:repository])
@@ -39,7 +39,7 @@ class SysController < ActionController::Base
       if repository.save
         render :xml => {repository.class.name.underscore.gsub('/', '-') => {:id => repository.id, :url => repository.url}}, :status => 201
       else
-        render :nothing => true, :status => 422
+        head 422
       end
     end
   end
@@ -64,9 +64,9 @@ class SysController < ActionController::Base
         repository.fetch_changesets
       end
     end
-    render :nothing => true, :status => 200
+    head 200
   rescue ActiveRecord::RecordNotFound
-    render :nothing => true, :status => 404
+    head 404
   end
 
   protected
@@ -74,7 +74,7 @@ class SysController < ActionController::Base
   def check_enabled
     User.current = nil
     unless Setting.sys_api_enabled? && params[:key].to_s == Setting.sys_api_key
-      render :text => 'Access denied. Repository management WS is disabled or key is invalid.', :status => 403
+      render :plain => 'Access denied. Repository management WS is disabled or key is invalid.', :status => 403
       return false
     end
   end

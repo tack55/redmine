@@ -4,11 +4,9 @@
             :class => 'icon icon-time-add' if User.current.allowed_to?(:log_time, @project, :global => true) %>
 </div>
 
-<%= render_timelog_breadcrumb %>
+<h2><%= @query.new_record? ? l(:label_spent_time) : @query.name %></h2>
 
-<h2><%= l(:label_spent_time) %></h2>
-
-<%= form_tag(params.slice(:project_id, :issue_id), :method => :get, :id => 'query_form') do %>
+<%= form_tag(_report_time_entries_path(@project, nil), :method => :get, :id => 'query_form') do %>
   <% @report.criteria.each do |criterion| %>
     <%= hidden_field_tag 'criteria[]', criterion, :id => nil %>
   <% end %>
@@ -29,11 +27,9 @@
 <% end %>
 
 <% unless @report.criteria.empty? %>
-<div class="total-hours">
-<p><%= l(:label_total_time) %>: <%= html_hours(l_hours(@report.total_hours)) %></p>
-</div>
-
-<% unless @report.hours.empty? %>
+<% if @report.hours.empty? %>
+<p class="nodata"><%= l(:label_no_data) %></p>
+<% else %>
 <div class="autoscroll">
 <table class="list" id="time-report">
 <thead>
@@ -70,5 +66,9 @@
 <% end %>
 <% end %>
 
-<% html_title l(:label_spent_time), l(:label_report) %>
+<% content_for :sidebar do %>
+  <%= render_sidebar_queries(TimeEntryQuery, @project) %>
+<% end %>
+
+<% html_title(@query.new_record? ? l(:label_spent_time) : @query.name, l(:label_report)) %>
 

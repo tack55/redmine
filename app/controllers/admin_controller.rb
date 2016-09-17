@@ -21,7 +21,7 @@ class AdminController < ApplicationController
   menu_item :plugins, :only => :plugins
   menu_item :info, :only => :info
 
-  before_filter :require_admin
+  before_action :require_admin
   helper :sort
   include SortHelper
 
@@ -34,7 +34,10 @@ class AdminController < ApplicationController
 
     scope = Project.status(@status).sorted
     scope = scope.like(params[:name]) if params[:name].present?
-    @projects = scope.to_a
+
+    @project_count = scope.count
+    @project_pages = Paginator.new @project_count, per_page_option, params['page']
+    @projects = scope.limit(@project_pages.per_page).offset(@project_pages.offset).to_a
 
     render :action => "projects", :layout => false if request.xhr?
   end

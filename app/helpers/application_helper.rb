@@ -371,8 +371,8 @@ module ApplicationHelper
   # Yields the given block for each project with its level in the tree
   #
   # Wrapper for Project#project_tree
-  def project_tree(projects, &block)
-    Project.project_tree(projects, &block)
+  def project_tree(projects, options={}, &block)
+    Project.project_tree(projects, options, &block)
   end
 
   def principals_check_box_tags(name, principals)
@@ -561,6 +561,9 @@ module ApplicationHelper
     css << 'project-' + @project.identifier if @project && @project.identifier.present?
     css << 'controller-' + controller_name
     css << 'action-' + action_name
+    if UserPreference::TEXTAREA_FONT_OPTIONS.include?(User.current.pref.textarea_font)
+      css << "textarea-#{User.current.pref.textarea_font}"
+    end
     css.join(' ')
   end
 
@@ -1109,6 +1112,11 @@ module ApplicationHelper
     url = params[:back_url]
     if url.nil? && referer = request.env['HTTP_REFERER']
       url = CGI.unescape(referer.to_s)
+      # URLs that contains the utf8=[checkmark] parameter added by Rails are
+      # parsed as invalid by URI.parse so the redirect to the back URL would
+      # not be accepted (ApplicationController#validate_back_url would return
+      # false)
+      url.gsub!(/(\?|&)utf8=\u2713&?/, '\1')
     end
     url
   end
@@ -1359,9 +1367,5 @@ module ApplicationHelper
     helper = Redmine::WikiFormatting.helper_for(Setting.text_formatting)
     extend helper
     return self
-  end
-
-  def link_to_content_update(text, url_params = {}, html_options = {})
-    link_to(text, url_params, html_options)
   end
 end
