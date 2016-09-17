@@ -197,9 +197,7 @@ class Project < ActiveRecord::Base
         if role.allowed_to?(permission)
           s = "#{Project.table_name}.is_public = #{connection.quoted_true}"
           if user.id
-            group = role.anonymous? ? Group.anonymous : Group.non_member
-            principal_ids = [user.id, group.id].compact
-            s = "(#{s} AND #{Project.table_name}.id NOT IN (SELECT project_id FROM #{Member.table_name} WHERE user_id IN (#{principal_ids.join(',')})))"
+            s = "(#{s} AND #{Project.table_name}.id NOT IN (SELECT project_id FROM #{Member.table_name} WHERE user_id = #{user.id}))"
           end
           statement_by_role[role] = s
         end
@@ -235,11 +233,11 @@ class Project < ActiveRecord::Base
   end
 
   def principals
-    @principals ||= Principal.active.joins(:members).where("#{Member.table_name}.project_id = ?", id).distinct
+    @principals ||= Principal.active.joins(:members).where("#{Member.table_name}.project_id = ?", id).uniq
   end
 
   def users
-    @users ||= User.active.joins(:members).where("#{Member.table_name}.project_id = ?", id).distinct
+    @users ||= User.active.joins(:members).where("#{Member.table_name}.project_id = ?", id).uniq
   end
 
   # Returns the Systemwide and project specific activities
@@ -423,24 +421,16 @@ class Project < ActiveRecord::Base
     save
   end
 
-  # Returns a scope of the trackers used by the project and its active sub projects
-  def rolled_up_trackers(include_subprojects=true)
-    if include_subprojects
-      @rolled_up_trackers ||= rolled_up_trackers_base_scope.
-          where("#{Project.table_name}.lft >= ? AND #{Project.table_name}.rgt <= ?", lft, rgt)
-    else
-      rolled_up_trackers_base_scope.
-        where(:projects => {:id => id})
-    end
-  end
-
-  def rolled_up_trackers_base_scope
-    Tracker.
-      joins(projects: :enabled_modules).
-      where("#{Project.table_name}.status <> ?", STATUS_ARCHIVED).
-      where(:enabled_modules => {:name => 'issue_tracking'}).
-      distinct.
-      sorted
+  # Returns an array of the trackers used by the project and its active sub projects
+  def rolled_up_trackers
+    @rolled_up_trackers ||=
+      Tracker.
+        joins(projects: :enabled_modules).
+        where("#{Project.table_name}.lft >= ? AND #{Project.table_name}.rgt <= ? AND #{Project.table_name}.status <> ?", lft, rgt, STATUS_ARCHIVED).
+        where("#{EnabledModule.table_name}.name = ?", 'issue_tracking').
+        uniq.
+        sorted.
+        to_a
   end
 
   # Closes open and locked project versions that are completed
@@ -500,47 +490,30 @@ class Project < ActiveRecord::Base
   # Adds user as a project member with the default role
   # Used for when a non-admin user creates a project
   def add_default_member(user)
-    role = self.class.default_member_role
+    role = Role.givable.find_by_id(Setting.new_project_user_role_id.to_i) || Role.givable.first
     member = Member.new(:project => self, :principal => user, :roles => [role])
     self.members << member
     member
-  end
-
-	# Default role that is given to non-admin users that
-	# create a project
-  def self.default_member_role
-    Role.givable.find_by_id(Setting.new_project_user_role_id.to_i) || Role.givable.first
   end
 
   # Deletes all project's members
   def delete_all_members
     me, mr = Member.table_name, MemberRole.table_name
     self.class.connection.delete("DELETE FROM #{mr} WHERE #{mr}.member_id IN (SELECT #{me}.id FROM #{me} WHERE #{me}.project_id = #{id})")
-    Member.where(:project_id => id).delete_all
+    Member.delete_all(['project_id = ?', id])
   end
 
   # Return a Principal scope of users/groups issues can be assigned to
-  def assignable_users(tracker=nil)
-    return @assignable_users[tracker] if @assignable_users && @assignable_users[tracker]
-
+  def assignable_users
     types = ['User']
     types << 'Group' if Setting.issue_group_assignment?
 
-    scope = Principal.
+    @assignable_users ||= Principal.
       active.
       joins(:members => :roles).
       where(:type => types, :members => {:project_id => id}, :roles => {:assignable => true}).
-      distinct.
+      uniq.
       sorted
-
-    if tracker
-      # Rejects users that cannot the view the tracker
-      roles = Role.where(:assignable => true).select {|role| role.permissions_tracker?(:view_issues, tracker)}
-      scope = scope.where(:roles => {:id => roles.map(&:id)})
-    end
-
-    @assignable_users ||= {}
-    @assignable_users[tracker] = scope
   end
 
   # Returns the mail addresses of users that should be always notified on project events
@@ -551,7 +524,7 @@ class Project < ActiveRecord::Base
   # Returns the users that should be notified on project events
   def notified_users
     # TODO: User part should be extracted to User#notify_about?
-    members.preload(:principal).select {|m| m.principal.present? && (m.mail_notification? || m.principal.mail_notification == 'all')}.collect {|m| m.principal}
+    members.select {|m| m.principal.present? && (m.mail_notification? || m.principal.mail_notification == 'all')}.collect {|m| m.principal}
   end
 
   # Returns a scope of all custom fields enabled for project issues
@@ -722,17 +695,7 @@ class Project < ActiveRecord::Base
     'default_version_id'
 
   safe_attributes 'enabled_module_names',
-    :if => lambda {|project, user|
-        if project.new_record?
-          if user.admin?
-            true
-          else
-            default_member_role.has_permission?(:select_project_modules)
-          end
-        else
-          user.allowed_to?(:select_project_modules, project)
-        end
-      }
+    :if => lambda {|project, user| project.new_record? || user.allowed_to?(:select_project_modules, project) }
 
   safe_attributes 'inherit_members',
     :if => lambda {|project, user| project.parent.nil? || project.parent.visible?(user)}
@@ -816,11 +779,8 @@ class Project < ActiveRecord::Base
   end
 
   # Yields the given block for each project with its level in the tree
-  def self.project_tree(projects, options={}, &block)
+  def self.project_tree(projects, &block)
     ancestors = []
-    if options[:init_level] && projects.first
-      ancestors = projects.first.ancestors.to_a
-    end
     projects.sort_by(&:lft).each do |project|
       while (ancestors.any? && !project.is_descendant_of?(ancestors.last))
         ancestors.pop

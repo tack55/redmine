@@ -27,6 +27,7 @@ class AccountTest < Redmine::IntegrationTest
 
     get "/my/account"
     assert_response :success
+    assert_template "my/account"
   end
 
   def test_login_should_set_session_token
@@ -66,6 +67,7 @@ class AccountTest < Redmine::IntegrationTest
       cookies[:autologin] = token.value
       get '/my/page'
       assert_response :success
+      assert_template 'my/page'
       assert_equal user.id, session[:user_id]
       assert_not_nil user.reload.last_login_on
     end
@@ -104,6 +106,7 @@ class AccountTest < Redmine::IntegrationTest
 
     get "/account/lost_password"
     assert_response :success
+    assert_template "account/lost_password"
     assert_select 'input[name=mail]'
 
     post "/account/lost_password", :mail => 'jSmith@somenet.foo'
@@ -116,6 +119,7 @@ class AccountTest < Redmine::IntegrationTest
 
     get "/account/lost_password", :token => token.value
     assert_response :success
+    assert_template "account/password_recovery"
     assert_select 'input[type=hidden][name=token][value=?]', token.value
     assert_select 'input[name=new_password]'
     assert_select 'input[name=new_password_confirmation]'
@@ -140,21 +144,6 @@ class AccountTest < Redmine::IntegrationTest
 
     get '/issues'
     assert_redirected_to '/my/password'
-  end
-
-  def test_flash_message_should_use_user_language_when_redirecting_user_for_password_change
-    user = User.find_by_login('jsmith')
-    user.must_change_passwd = true
-    user.language = 'it'
-    user.save!
-
-    post '/login', :username => 'jsmith', :password => 'jsmith'
-    assert_redirected_to '/my/page'
-    follow_redirect!
-    assert_redirected_to '/my/password'
-    follow_redirect!
-
-    assert_select 'div.error', :text => /richiesto che sia cambiata/
   end
 
   def test_user_with_must_change_passwd_should_be_able_to_change_its_password
@@ -213,6 +202,7 @@ class AccountTest < Redmine::IntegrationTest
 
     get '/account/register'
     assert_response :success
+    assert_template 'account/register'
 
     post '/account/register',
          :user => {:login => "newuser", :language => "en",
@@ -221,6 +211,7 @@ class AccountTest < Redmine::IntegrationTest
     assert_redirected_to '/my/account'
     follow_redirect!
     assert_response :success
+    assert_template 'my/account'
 
     user = User.find_by_login('newuser')
     assert_not_nil user
@@ -284,6 +275,7 @@ class AccountTest < Redmine::IntegrationTest
 
     post '/login', :username => 'foo', :password => 'bar'
     assert_response :success
+    assert_template 'account/register'
     assert_select 'input[name=?][value=""]', 'user[firstname]'
     assert_select 'input[name=?][value=Smith]', 'user[lastname]'
     assert_select 'input[name=?]', 'user[login]', 0

@@ -16,8 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class IssueRelationsController < ApplicationController
-  before_action :find_issue, :authorize, :only => [:index, :create]
-  before_action :find_relation, :only => [:show, :destroy]
+  before_filter :find_issue, :authorize, :only => [:index, :create]
+  before_filter :find_relation, :only => [:show, :destroy]
 
   accept_api_auth :index, :show, :create, :destroy
 
@@ -25,7 +25,7 @@ class IssueRelationsController < ApplicationController
     @relations = @issue.relations
 
     respond_to do |format|
-      format.html { head 200 }
+      format.html { render :nothing => true }
       format.api
     end
   end
@@ -34,7 +34,7 @@ class IssueRelationsController < ApplicationController
     raise Unauthorized unless @relation.visible?
 
     respond_to do |format|
-      format.html { head 200 }
+      format.html { render :nothing => true }
       format.api
     end
   end

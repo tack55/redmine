@@ -17,7 +17,7 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class WikiHelperTest < Redmine::HelperTest
+class WikiHelperTest < ActionView::TestCase
   include WikiHelper
   include Rails.application.routes.url_helpers
 

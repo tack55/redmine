@@ -46,7 +46,8 @@ class Redmine::ApiTest::IssuesTest < Redmine::ApiTest::Base
 
   test "GET /issues.xml should contain metadata" do
     get '/issues.xml'
-    assert_select 'issues[type=array][total_count][limit="25"][offset="0"]'
+    assert_select 'issues[type=array][total_count=?][limit="25"][offset="0"]',
+      assigns(:issue_count).to_s
   end
 
   test "GET /issues.xml with nometa param should not contain metadata" do
@@ -61,7 +62,9 @@ class Redmine::ApiTest::IssuesTest < Redmine::ApiTest::Base
 
   test "GET /issues.xml with offset and limit" do
     get '/issues.xml?offset=2&limit=3'
-    assert_select 'issues[type=array][total_count][limit="3"][offset="2"]'
+
+    assert_equal 3, assigns(:limit)
+    assert_equal 2, assigns(:offset)
     assert_select 'issues issue', 3
   end
 

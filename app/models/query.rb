@@ -74,33 +74,13 @@ class QueryColumn
   end
 end
 
-class QueryAssociationColumn < QueryColumn
-
-  def initialize(association, attribute, options={})
-    @association = association
-    @attribute = attribute
-    name_with_assoc = "#{association}.#{attribute}".to_sym
-    super(name_with_assoc, options)
-  end
-
-  def value_object(object)
-    if assoc = object.send(@association)
-      assoc.send @attribute
-    end
-  end
-
-  def css_classes
-    @css_classes ||= "#{@association}-#{@attribute}"
-  end
-end
-
 class QueryCustomFieldColumn < QueryColumn
 
-  def initialize(custom_field, options={})
+  def initialize(custom_field)
     self.name = "cf_#{custom_field.id}".to_sym
     self.sortable = custom_field.order_statement || false
     self.groupable = custom_field.group_statement || false
-    self.totalable = options.key?(:totalable) ? !!options[:totalable] : custom_field.totalable?
+    self.totalable = custom_field.totalable?
     @inline = true
     @cf = custom_field
   end
@@ -140,8 +120,8 @@ end
 
 class QueryAssociationCustomFieldColumn < QueryCustomFieldColumn
 
-  def initialize(association, custom_field, options={})
-    super(custom_field, options)
+  def initialize(association, custom_field)
+    super(custom_field)
     self.name = "#{association}.cf_#{custom_field.id}".to_sym
     # TODO: support sorting/grouping by association custom field
     self.sortable = false
@@ -163,8 +143,6 @@ end
 class Query < ActiveRecord::Base
   class StatementInvalid < ::ActiveRecord::StatementInvalid
   end
-
-  include Redmine::SubclassFactory
 
   VISIBILITY_PRIVATE = 0
   VISIBILITY_ROLES   = 1
@@ -251,76 +229,6 @@ class Query < ActiveRecord::Base
 
   class_attribute :queried_class
 
-  # Permission required to view the queries, set on subclasses.
-  class_attribute :view_permission
-
-  # Scope of queries that are global or on the given project
-  scope :global_or_on_project, lambda {|project|
-    where(:project_id => (project.nil? ? nil : [nil, project.id]))
-  }
-
-  scope :sorted, lambda {order(:name, :id)}
-
-  # Scope of visible queries, can be used from subclasses only.
-  # Unlike other visible scopes, a class methods is used as it
-  # let handle inheritance more nicely than scope DSL.
-  def self.visible(*args)
-    if self == ::Query
-      # Visibility depends on permissions for each subclass,
-      # raise an error if the scope is called from Query (eg. Query.visible)
-      raise Exception.new("Cannot call .visible scope from the base Query class, but from subclasses only.")
-    end
-
-    user = args.shift || User.current
-    base = Project.allowed_to_condition(user, view_permission, *args)
-    scope = joins("LEFT OUTER JOIN #{Project.table_name} ON #{table_name}.project_id = #{Project.table_name}.id").
-      where("#{table_name}.project_id IS NULL OR (#{base})")
-
-    if user.admin?
-      scope.where("#{table_name}.visibility <> ? OR #{table_name}.user_id = ?", VISIBILITY_PRIVATE, user.id)
-    elsif user.memberships.any?
-      scope.where("#{table_name}.visibility = ?" +
-        " OR (#{table_name}.visibility = ? AND #{table_name}.id IN (" +
-          "SELECT DISTINCT q.id FROM #{table_name} q" +
-          " INNER JOIN #{table_name_prefix}queries_roles#{table_name_suffix} qr on qr.query_id = q.id" +
-          " INNER JOIN #{MemberRole.table_name} mr ON mr.role_id = qr.role_id" +
-          " INNER JOIN #{Member.table_name} m ON m.id = mr.member_id AND m.user_id = ?" +
-          " WHERE q.project_id IS NULL OR q.project_id = m.project_id))" +
-        " OR #{table_name}.user_id = ?",
-        VISIBILITY_PUBLIC, VISIBILITY_ROLES, user.id, user.id)
-    elsif user.logged?
-      scope.where("#{table_name}.visibility = ? OR #{table_name}.user_id = ?", VISIBILITY_PUBLIC, user.id)
-    else
-      scope.where("#{table_name}.visibility = ?", VISIBILITY_PUBLIC)
-    end
-  end
-
-  # Returns true if the query is visible to +user+ or the current user.
-  def visible?(user=User.current)
-    return true if user.admin?
-    return false unless project.nil? || user.allowed_to?(self.class.view_permission, project)
-    case visibility
-    when VISIBILITY_PUBLIC
-      true
-    when VISIBILITY_ROLES
-      if project
-        (user.roles_for_project(project) & roles).any?
-      else
-        Member.where(:user_id => user.id).joins(:roles).where(:member_roles => {:role_id => roles.map(&:id)}).any?
-      end
-    else
-      user == self.user
-    end
-  end
-
-  def is_private?
-    visibility == VISIBILITY_PRIVATE
-  end
-
-  def is_public?
-    !is_private?
-  end
-
   def queried_table_name
     @queried_table_name ||= self.class.queried_class.table_name
   end
@@ -393,7 +301,7 @@ class Query < ActiveRecord::Base
   end
 
   def trackers
-    @trackers ||= (project.nil? ? Tracker.all : project.rolled_up_trackers).visible.sorted
+    @trackers ||= project.nil? ? Tracker.sorted.to_a : project.rolled_up_trackers
   end
 
   # Returns a hash of localized labels for all filter operators
@@ -480,7 +388,7 @@ class Query < ActiveRecord::Base
       next unless expression =~ /^#{Regexp.escape(operator)}(.*)$/
       values = $1
       add_filter field, operator, values.present? ? values.split('|') : ['']
-    end || add_filter(field, '=', expression.to_s.split('|'))
+    end || add_filter(field, '=', expression.split('|'))
   end
 
   # Add multiple filters using +add_filter+
@@ -566,10 +474,6 @@ class Query < ActiveRecord::Base
     []
   end
 
-  def default_totalable_names
-    []
-  end
-
   def column_names=(names)
     if names
       names = names.select {|n| n.is_a?(Symbol) || !n.blank? }
@@ -607,7 +511,7 @@ class Query < ActiveRecord::Base
   end
 
   def totalable_names
-    options[:totalable_names] || default_totalable_names || []
+    options[:totalable_names] || Setting.issue_list_default_totals.map(&:to_sym) || []
   end
 
   def sort_criteria=(arg)
@@ -715,9 +619,9 @@ class Query < ActiveRecord::Base
       if field =~ /cf_(\d+)$/
         # custom field
         filters_clauses << sql_for_custom_field(field, operator, v, $1)
-      elsif respond_to?(method = "sql_for_#{field.gsub('.','_')}_field")
+      elsif respond_to?("sql_for_#{field}_field")
         # specific statement
-        filters_clauses << send(method, field, operator, v)
+        filters_clauses << send("sql_for_#{field}_field", field, operator, v)
       else
         # regular field
         filters_clauses << '(' + sql_for_field(field, operator, v, queried_table_name, field) + ')'

@@ -19,7 +19,7 @@ class ContextMenusController < ApplicationController
   helper :watchers
   helper :issues
 
-  before_action :find_issues, :only => :issues
+  before_filter :find_issues, :only => :issues
 
   def issues
     if (@issues.size == 1)
@@ -35,8 +35,16 @@ class ContextMenusController < ApplicationController
             :add_watchers => User.current.allowed_to?(:add_issue_watchers, @projects),
             :delete => @issues.all?(&:deletable?)
             }
-
-    @assignables = @issues.map(&:assignable_users).reduce(:&)
+    if @project
+      if @issue
+        @assignables = @issue.assignable_users
+      else
+        @assignables = @project.assignable_users
+      end
+    else
+      #when multiple projects, we only keep the intersection of each set
+      @assignables = @projects.map(&:assignable_users).reduce(:&)
+    end
     @trackers = @projects.map {|p| Issue.allowed_target_trackers(p) }.reduce(:&)
     @versions = @projects.map {|p| p.shared_versions.open}.reduce(:&)
 

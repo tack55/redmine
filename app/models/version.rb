@@ -41,18 +41,7 @@ class Version < ActiveRecord::Base
   attr_protected :id
 
   scope :named, lambda {|arg| where("LOWER(#{table_name}.name) = LOWER(?)", arg.to_s.strip)}
-  scope :like, lambda {|arg|
-    if arg.present?
-      pattern = "%#{arg.to_s.strip}%"
-      where("LOWER(#{Version.table_name}.name) LIKE :p", :p => pattern)
-    end
-  }
   scope :open, lambda { where(:status => 'open') }
-  scope :status, lambda {|status|
-    if status.present?
-      where(:status => status.to_s)
-    end
-  }
   scope :visible, lambda {|*args|
     joins(:project).
     where(Project.allowed_to_condition(args.first || User.current, :view_issues))
@@ -204,17 +193,6 @@ class Version < ActiveRecord::Base
         1
       else
         name == version.name ? id <=> version.id : name <=> version.name
-      end
-    end
-  end
-
-  # Sort versions by status (open, locked then closed versions)
-  def self.sort_by_status(versions)
-    versions.sort do |a, b|
-      if a.status == b.status
-        a <=> b
-      else
-        b.status <=> a.status
       end
     end
   end

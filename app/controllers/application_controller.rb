@@ -51,7 +51,7 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  before_action :session_expiration, :user_setup, :check_if_login_required, :set_localization, :check_password_change
+  before_filter :session_expiration, :user_setup, :check_if_login_required, :check_password_change, :set_localization
 
   rescue_from ::Unauthorized, :with => :deny_access
   rescue_from ::ActionView::MissingTemplate, :with => :missing_template
@@ -169,8 +169,8 @@ class ApplicationController < ActionController::Base
   def logout_user
     if User.current.logged?
       cookies.delete(autologin_cookie_name)
-      Token.where(["user_id = ? AND action = ?", User.current.id, 'autologin']).delete_all
-      Token.where(["user_id = ? AND action = ? AND value = ?", User.current.id, 'session', session[:tk]]).delete_all
+      Token.delete_all(["user_id = ? AND action = ?", User.current.id, 'autologin'])
+      Token.delete_all(["user_id = ? AND action = ? AND value = ?", User.current.id, 'session', session[:tk]])
       self.logged_user = nil
     end
   end
@@ -213,7 +213,7 @@ class ApplicationController < ActionController::Base
     if !User.current.logged?
       # Extract only the basic url parameters on non-GET requests
       if request.get?
-        url = request.original_url
+        url = url_for(params)
       else
         url = url_for(:controller => params[:controller], :action => params[:action], :id => params[:id], :project_id => params[:project_id])
       end
@@ -352,24 +352,8 @@ class ApplicationController < ActionController::Base
     @attachments = att || []
   end
 
-  def parse_params_for_bulk_update(params)
-    attributes = (params || {}).reject {|k,v| v.blank?}
-    attributes.keys.each {|k| attributes[k] = '' if attributes[k] == 'none'}
-    if custom = attributes[:custom_field_values]
-      custom.reject! {|k,v| v.blank?}
-      custom.keys.each do |k|
-        if custom[k].is_a?(Array)
-          custom[k] << '' if custom[k].delete('__none__')
-        else
-          custom[k] = '' if custom[k] == '__none__'
-        end
-      end
-    end
-    attributes
-  end
-
   # make sure that the user is a member of the project (or admin) if project is private
-  # used as a before_action for actions that do not require any particular permission on the project
+  # used as a before_filter for actions that do not require any particular permission on the project
   def check_project_privacy
     if @project && !@project.archived?
       if @project.visible?
@@ -654,7 +638,8 @@ class ApplicationController < ActionController::Base
 
   # Renders a head API response
   def render_api_head(status)
-    head :status => status
+    # #head would return a response body with one space
+    render :text => '', :status => status, :layout => nil
   end
 
   # Renders API response on validation failure

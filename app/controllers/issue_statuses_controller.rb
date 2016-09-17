@@ -18,8 +18,8 @@
 class IssueStatusesController < ApplicationController
   layout 'admin'
 
-  before_action :require_admin, :except => :index
-  before_action :require_admin_or_api_request, :only => :index
+  before_filter :require_admin, :except => :index
+  before_filter :require_admin_or_api_request, :only => :index
   accept_api_auth :index
 
   def index
@@ -35,8 +35,7 @@ class IssueStatusesController < ApplicationController
   end
 
   def create
-    @issue_status = IssueStatus.new
-    @issue_status.safe_attributes = params[:issue_status]
+    @issue_status = IssueStatus.new(params[:issue_status])
     if @issue_status.save
       flash[:notice] = l(:notice_successful_create)
       redirect_to issue_statuses_path
@@ -51,19 +50,18 @@ class IssueStatusesController < ApplicationController
 
   def update
     @issue_status = IssueStatus.find(params[:id])
-    @issue_status.safe_attributes = params[:issue_status]
-    if @issue_status.save
+    if @issue_status.update_attributes(params[:issue_status])
       respond_to do |format|
         format.html {
           flash[:notice] = l(:notice_successful_update)
           redirect_to issue_statuses_path(:page => params[:page])
         }
-        format.js { head 200 }
+        format.js { render :nothing => true }
       end
     else
       respond_to do |format|
         format.html { render :action => 'edit' }
-        format.js { head 422 }
+        format.js { render :nothing => true, :status => 422 }
       end
     end
   end

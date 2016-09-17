@@ -17,7 +17,7 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class WatchersHelperTest < Redmine::HelperTest
+class WatchersHelperTest < ActionView::TestCase
   include WatchersHelper
   include Redmine::I18n
   include Rails.application.routes.url_helpers

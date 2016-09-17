@@ -113,21 +113,21 @@ class SudoModeTest < Redmine::IntegrationTest
     assert_response :success
     assert_select 'h2', 'Confirm your password to continue'
     assert_select 'form[action="/roles"]'
-    assert_select '#flash_error', 0
+    assert assigns(:sudo_form).errors.blank?
 
     post '/roles', role: { name: 'new role', issues_visibility: 'all' }
     assert_response :success
     assert_select 'h2', 'Confirm your password to continue'
     assert_select 'form[action="/roles"]'
-    assert_select 'input[type=hidden][name=?][value=?]', 'role[name]', 'new role'
-    assert_select '#flash_error', 0
+    assert_match /"new role"/, response.body
+    assert assigns(:sudo_form).errors.blank?
 
     post '/roles', role: { name: 'new role', issues_visibility: 'all' }, sudo_password: 'wrong'
     assert_response :success
     assert_select 'h2', 'Confirm your password to continue'
     assert_select 'form[action="/roles"]'
-    assert_select 'input[type=hidden][name=?][value=?]', 'role[name]', 'new role'
-    assert_select '#flash_error'
+    assert_match /"new role"/, response.body
+    assert assigns(:sudo_form).errors[:password].present?
 
     assert_difference 'Role.count' do
       post '/roles', role: { name: 'new role', issues_visibility: 'all', assignable: '1', permissions: %w(view_calendar) }, sudo_password: 'admin'
@@ -144,16 +144,16 @@ class SudoModeTest < Redmine::IntegrationTest
     assert_response :success
     assert_select 'h2', 'Confirm your password to continue'
     assert_select 'form[action="/my/account"]'
-    assert_select 'input[type=hidden][name=?][value=?]', 'user[mail]', 'newmail@test.com'
-    assert_select '#flash_error', 0
+    assert_match /"newmail@test\.com"/, response.body
+    assert assigns(:sudo_form).errors.blank?
 
     # wrong password
     post '/my/account', user: { mail: 'newmail@test.com' }, sudo_password: 'wrong'
     assert_response :success
     assert_select 'h2', 'Confirm your password to continue'
     assert_select 'form[action="/my/account"]'
-    assert_select 'input[type=hidden][name=?][value=?]', 'user[mail]', 'newmail@test.com'
-    assert_select '#flash_error'
+    assert_match /"newmail@test\.com"/, response.body
+    assert assigns(:sudo_form).errors[:password].present?
 
     # correct password
     post '/my/account', user: { mail: 'newmail@test.com' }, sudo_password: 'jsmith'

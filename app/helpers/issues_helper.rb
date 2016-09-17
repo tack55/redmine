@@ -33,13 +33,28 @@ module IssuesHelper
   end
 
   def grouped_issue_list(issues, query, issue_count_by_group, &block)
-    ancestors = []
-    grouped_query_results(issues, query, issue_count_by_group) do |issue, group_name, group_count, group_totals|
-      while (ancestors.any? && !issue.is_descendant_of?(ancestors.last))
-        ancestors.pop
+    previous_group, first = false, true
+    totals_by_group = query.totalable_columns.inject({}) do |h, column|
+      h[column] = query.total_by_group_for(column)
+      h
+    end
+    issue_list(issues) do |issue, level|
+      group_name = group_count = nil
+      if query.grouped?
+        group = query.group_by_column.value(issue)
+        if first || group != previous_group
+          if group.blank? && group != false
+            group_name = "(#{l(:label_blank_value)})"
+          else
+            group_name = format_object(group)
+          end
+          group_name ||= ""
+          group_count = issue_count_by_group[group]
+          group_totals = totals_by_group.map {|column, t| total_tag(column, t[group] || 0)}.join(" ").html_safe
+        end
       end
-      yield issue, ancestors.size, group_name, group_count, group_totals
-      ancestors << issue unless issue.leaf?
+      yield issue, level, group_name, group_count, group_totals
+      previous_group, first = group, false
     end
   end
 
@@ -91,8 +106,8 @@ module IssuesHelper
 
   def render_descendants_tree(issue)
     s = '<form><table class="list issues">'
-    issue_list(issue.descendants.visible.preload(:status, :priority, :tracker, :assigned_to).sort_by(&:lft)) do |child, level|
-      css = "issue issue-#{child.id} hascontextmenu #{child.css_classes}"
+    issue_list(issue.descendants.visible.preload(:status, :priority, :tracker).sort_by(&:lft)) do |child, level|
+      css = "issue issue-#{child.id} hascontextmenu #{issue.css_classes}"
       css << " idnt idnt-#{level}" if level > 0
       s << content_tag('tr',
              content_tag('td', check_box_tag("ids[]", child.id, false, :id => nil), :class => 'checkbox') +
@@ -120,13 +135,11 @@ module IssuesHelper
 
   def issue_spent_hours_details(issue)
     if issue.total_spent_hours > 0
-      path = project_time_entries_path(issue.project, :issue_id => "~#{issue.id}")
-
       if issue.total_spent_hours == issue.spent_hours
-        link_to(l_hours_short(issue.spent_hours), path)
+        link_to(l_hours_short(issue.spent_hours), issue_time_entries_path(issue))
       else
         s = issue.spent_hours > 0 ? l_hours_short(issue.spent_hours) : ""
-        s << " (#{l(:label_total)}: #{link_to l_hours_short(issue.total_spent_hours), path})"
+        s << " (#{l(:label_total)}: #{link_to l_hours_short(issue.total_spent_hours), issue_time_entries_path(issue)})"
         s.html_safe
       end
     end
@@ -261,6 +274,40 @@ module IssuesHelper
       users = (users + issue.project.users.sort).uniq
     end
     users
+  end
+
+  def sidebar_queries
+    unless @sidebar_queries
+      @sidebar_queries = IssueQuery.visible.
+        order("#{Query.table_name}.name ASC").
+        # Project specific queries and global queries
+        where(@project.nil? ? ["project_id IS NULL"] : ["project_id IS NULL OR project_id = ?", @project.id]).
+        to_a
+    end
+    @sidebar_queries
+  end
+
+  def query_links(title, queries)
+    return '' if queries.empty?
+    # links to #index on issues/show
+    url_params = controller_name == 'issues' ? {:controller => 'issues', :action => 'index', :project_id => @project} : params
+
+    content_tag('h3', title) + "\n" +
+      content_tag('ul',
+        queries.collect {|query|
+            css = 'query'
+            css << ' selected' if query == @query
+            content_tag('li', link_to(query.name, url_params.merge(:query_id => query), :class => css))
+          }.join("\n").html_safe,
+        :class => 'queries'
+      ) + "\n"
+  end
+
+  def render_sidebar_queries
+    out = ''.html_safe
+    out << query_links(l(:label_my_queries), sidebar_queries.select(&:is_private?))
+    out << query_links(l(:label_query_plural), sidebar_queries.reject(&:is_private?))
+    out
   end
 
   def email_issue_attributes(issue, user)
@@ -404,8 +451,7 @@ module IssuesHelper
           atta = detail.journal.journalized.attachments.detect {|a| a.id == detail.prop_key.to_i}
         # Link to the attachment if it has not been removed
         value = link_to_attachment(atta, :download => true, :only_path => options[:only_path])
-        if options[:only_path] != false && (atta.is_text? || atta.is_image?)
-          value += ' '
+        if options[:only_path] != false && atta.is_text?
           value += link_to(l(:button_view),
                            { :controller => 'attachments', :action => 'show',
                              :id => atta, :filename => atta.filename },

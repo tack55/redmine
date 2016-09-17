@@ -140,17 +140,6 @@ class MailHandlerTest < ActiveSupport::TestCase
     assert_equal 'Alpha', issue.reload.fixed_version.name
   end
 
-  def test_add_issue_with_default_assigned_to
-    # This email contains: 'Project: onlinestore'
-    issue = submit_email(
-              'ticket_on_given_project.eml',
-              :issue => {:assigned_to => 'jsmith'}
-            )
-    assert issue.is_a?(Issue)
-    assert !issue.new_record?
-    assert_equal 'jsmith', issue.reload.assigned_to.login
-  end
-
   def test_add_issue_with_status_override
     # This email contains: 'Project: onlinestore' and 'Status: Resolved'
     issue = submit_email('ticket_on_given_project.eml', :allow_override => ['status'])
@@ -277,13 +266,12 @@ class MailHandlerTest < ActiveSupport::TestCase
   end
 
   def test_add_issue_should_add_cc_as_watchers
-    user = User.find_by_mail('dlopper@somenet.foo')
     issue = submit_email('ticket_with_cc.eml', :issue => {:project => 'ecookbook'})
     assert issue.is_a?(Issue)
     assert !issue.new_record?
-    assert issue.watched_by?(user)
+    issue.reload
+    assert issue.watched_by?(User.find_by_mail('dlopper@somenet.foo'))
     assert_equal 1, issue.watcher_user_ids.size
-    assert_include user, issue.watcher_users.to_a
   end
 
   def test_add_issue_from_additional_email_address

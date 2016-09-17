@@ -17,7 +17,7 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class ActivitiesHelperTest < Redmine::HelperTest
+class ActivitiesHelperTest < ActionView::TestCase
   include ActivitiesHelper
   include Redmine::I18n
 

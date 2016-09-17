@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class IssueRelationsControllerTest < Redmine::ControllerTest
+class IssueRelationsControllerTest < ActionController::TestCase
   fixtures :projects,
            :users,
            :roles,
@@ -59,13 +59,14 @@ class IssueRelationsControllerTest < Redmine::ControllerTest
     assert_difference 'IssueRelation.count' do
       xhr :post, :create, :issue_id => 3, :relation => {:issue_to_id => '1', :relation_type => 'relates', :delay => ''}
       assert_response :success
+      assert_template 'create'
       assert_equal 'text/javascript', response.content_type
     end
     relation = IssueRelation.order('id DESC').first
     assert_equal 3, relation.issue_from_id
     assert_equal 1, relation.issue_to_id
 
-    assert_include 'Bug #1', response.body
+    assert_match /Bug #1/, response.body
   end
 
   def test_create_should_accept_id_with_hash
@@ -103,7 +104,7 @@ class IssueRelationsControllerTest < Redmine::ControllerTest
       xhr :post, :create, :issue_id => issue2.id,
                  :relation => {:issue_to_id => issue1.id, :relation_type => 'follows', :delay => ''}
     end
-    assert_include 'Followed issue', response.body
+    assert_match /Followed issue/, response.body
   end
 
   def test_should_create_relations_with_visible_issues_only
@@ -121,9 +122,11 @@ class IssueRelationsControllerTest < Redmine::ControllerTest
       xhr :post, :create, :issue_id => 3, :relation => {:issue_to_id => '999', :relation_type => 'relates', :delay => ''}
 
       assert_response :success
+      assert_template 'create'
       assert_equal 'text/javascript', response.content_type
     end
-    assert_include 'Related issue cannot be blank', response.body
+
+    assert_match /errorExplanation/, response.body
   end
 
   def test_destroy
@@ -149,8 +152,9 @@ class IssueRelationsControllerTest < Redmine::ControllerTest
       xhr :delete, :destroy, :id => '2'
 
       assert_response :success
+      assert_template 'destroy'
       assert_equal 'text/javascript', response.content_type
-      assert_include 'relation-2', response.body
+      assert_match /relation-2/, response.body
     end
   end
 end

@@ -15,8 +15,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-require 'uri'
-
 module Redmine
   module FieldFormat
     def self.add(name, klass)
@@ -45,13 +43,6 @@ module Redmine
         format.class.customized_class_names.nil? || format.class.customized_class_names.include?(class_name)
       end
       formats.map {|format| [::I18n.t(format.label), format.name] }.sort_by(&:first)
-    end
-
-    # Returns an array of formats that can be used for a custom field class
-    def self.formats_for_custom_field_class(klass=nil)
-      all.values.select do |format|
-        format.class.customized_class_names.nil? || format.class.customized_class_names.include?(klass.name)
-      end
     end
 
     class Base
@@ -221,7 +212,7 @@ module Redmine
             end
           end
         end
-        URI.encode(url)
+        url
       end
       protected :url_from_pattern
 
@@ -811,23 +802,16 @@ module Redmine
           projects.map {|project| possible_values_options(custom_field, project)}.reduce(:&) || []
         elsif object.respond_to?(:project) && object.project
           scope = object.project.shared_versions
-          filtered_versions_options(custom_field, scope, all_statuses)
-        elsif object.nil?
-          scope = ::Version.visible.where(:sharing => 'system')
-          filtered_versions_options(custom_field, scope, all_statuses)
+          if !all_statuses && custom_field.version_status.is_a?(Array)
+            statuses = custom_field.version_status.map(&:to_s).reject(&:blank?)
+            if statuses.any?
+              scope = scope.where(:status => statuses.map(&:to_s))
+            end
+          end
+          scope.sort.collect {|u| [u.to_s, u.id.to_s]}
         else
           []
         end
-      end
-
-      def filtered_versions_options(custom_field, scope, all_statuses=false)
-        if !all_statuses && custom_field.version_status.is_a?(Array)
-          statuses = custom_field.version_status.map(&:to_s).reject(&:blank?)
-          if statuses.any?
-            scope = scope.where(:status => statuses.map(&:to_s))
-          end
-        end
-        scope.sort.collect{|u| [u.to_s, u.id.to_s] }
       end
     end
   end

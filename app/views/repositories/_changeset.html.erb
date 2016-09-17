@@ -1,36 +1,41 @@
-<h2><%= l(:label_revision) %> <%= format_revision(@changeset) %></h2>
+<h2><%= avatar(@changeset.user, :size => "24") %><%= l(:label_revision) %> <%= format_revision(@changeset) %></h2>
 
 <div class="details">
-  <h4>
-    <%= avatar(@changeset.user, :size => "24") %>
-    <%= authoring(@changeset.committed_on, @changeset.author) %>
-  </h4>
   <% if @changeset.scmid.present? || @changeset.parents.present? || @changeset.children.present? %>
-  <ul class="revision-info">
+  <table class="revision-info">
     <% if @changeset.scmid.present? %>
-      <li>
-        <strong>ID </strong><%= @changeset.scmid %>
-      </li>
+      <tr>
+        <td>ID</td><td><%= @changeset.scmid %></td>
+      </tr>
     <% end %>
     <% if @changeset.parents.present? %>
-      <li>
-        <strong><%= l(:label_parent_revision) %></strong>
+      <tr>
+        <td><%= l(:label_parent_revision) %></td>
+        <td>
           <%= @changeset.parents.collect{
                 |p| link_to_revision(p, @repository, :text => format_revision(p))
               }.join(", ").html_safe %>
-      </li>
+        </td>
+      </tr>
     <% end %>
     <% if @changeset.children.present? %>
-      <li>
-        <strong><%= l(:label_child_revision) %></strong>
+      <tr>
+        <td><%= l(:label_child_revision) %></td>
+        <td>
          <%= @changeset.children.collect{
                 |p| link_to_revision(p, @repository, :text => format_revision(p))
                }.join(", ").html_safe %>
-      </li>
+        </td>
+      </tr>
     <% end %>
-  </ul>
+  </table>
   <% end %>
 
+  <p>
+  <span class="author">
+  <%= authoring(@changeset.committed_on, @changeset.author) %>
+  </span>
+  </p>
 </div>
 
 <%= textilizable @changeset.comments %>

@@ -17,7 +17,7 @@
 
 require File.expand_path('../../../test_helper', __FILE__)
 
-class TimelogHelperTest < Redmine::HelperTest
+class TimelogHelperTest < ActionView::TestCase
   include TimelogHelper
   include Redmine::I18n
   include ActionView::Helpers::TextHelper

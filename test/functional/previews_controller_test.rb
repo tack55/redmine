@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class PreviewsControllerTest < Redmine::ControllerTest
+class PreviewsControllerTest < ActionController::TestCase
   fixtures :projects, :trackers, :issue_statuses, :issues,
            :enumerations, :users, :issue_categories,
            :projects_trackers,
@@ -32,35 +32,25 @@ class PreviewsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     post :issue, :project_id => '1', :issue => {:description => 'Foo'}
     assert_response :success
-    assert_select 'fieldset' do
-      assert_select 'legend', :text => 'Description'
-      assert_select 'p', :text => 'Foo'
-    end
+    assert_template 'previews/issue'
+    assert_not_nil assigns(:description)
   end
 
-  def test_preview_issue_notes_with_no_change_to_description
+  def test_preview_issue_notes
     @request.session[:user_id] = 2
     post :issue, :project_id => '1', :id => 1,
          :issue => {:description => Issue.find(1).description, :notes => 'Foo'}
     assert_response :success
-    assert_select 'legend', :text => 'Description', :count => 0
-    assert_select 'legend', :text => 'Notes'
-  end
-
-  def test_preview_issue_notes_with_no_change_to_description
-    @request.session[:user_id] = 2
-    post :issue, :project_id => '1', :id => 1,
-         :issue => {:description => 'Changed description', :notes => 'Foo'}
-    assert_response :success
-    assert_select 'legend', :text => 'Description'
-    assert_select 'legend', :text => 'Notes'
+    assert_template 'previews/issue'
+    assert_not_nil assigns(:notes)
   end
 
   def test_preview_journal_notes_for_update
     @request.session[:user_id] = 2
     post :issue, :project_id => '1', :id => 1, :notes => 'Foo'
     assert_response :success
-    assert_select 'legend', :text => 'Notes'
+    assert_template 'previews/issue'
+    assert_not_nil assigns(:notes)
     assert_select 'p', :text => 'Foo'
   end
 
@@ -76,7 +66,8 @@ class PreviewsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     post :issue, :project_id => '1', :id => 1, :issue => {:notes => 'notes', :project_id => 2}
     assert_response :success
-    assert_select 'legend', :text => 'Notes'
+    assert_not_nil assigns(:issue)
+    assert_not_nil assigns(:notes)
   end
 
   def test_preview_new_news
@@ -85,15 +76,20 @@ class PreviewsControllerTest < Redmine::ControllerTest
                             :description => 'News description',
                             :summary => ''}
     assert_response :success
+    assert_template 'common/_preview'
     assert_select 'fieldset.preview', :text => /News description/
   end
 
-  def test_preview_existing_news
+  def test_existing_new_news
     get :news, :project_id => 1, :id => 2,
                   :news => {:title => '',
                             :description => 'News description',
                             :summary => ''}
     assert_response :success
+    assert_template 'common/_preview'
+    assert_equal News.find(2), assigns(:previewed)
+    assert_not_nil assigns(:attachments)
+
     assert_select 'fieldset.preview', :text => /News description/
   end
 end

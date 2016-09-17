@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class GroupsControllerTest < Redmine::ControllerTest
+class GroupsControllerTest < ActionController::TestCase
   fixtures :projects, :users, :members, :member_roles, :roles, :groups_users
 
   def setup
@@ -27,7 +27,7 @@ class GroupsControllerTest < Redmine::ControllerTest
   def test_index
     get :index
     assert_response :success
-    assert_select 'table.groups'
+    assert_template 'index'
   end
 
   def test_index_should_show_user_count
@@ -36,18 +36,10 @@ class GroupsControllerTest < Redmine::ControllerTest
     assert_select 'tr#group-11 td.user_count', :text => '1'
   end
 
-  def test_index_with_name_filter
-    Group.generate!(:name => "Clients")
-
-    get :index, :name => "cli" 
-    assert_response :success
-    assert_select 'table.groups tbody tr', 1
-    assert_select 'table.groups tbody td.name', :text => 'Clients'
-  end
-
   def test_show
     get :show, :id => 10
     assert_response :success
+    assert_template 'show'
   end
 
   def test_show_invalid_should_return_404
@@ -58,6 +50,7 @@ class GroupsControllerTest < Redmine::ControllerTest
   def test_new
     get :new
     assert_response :success
+    assert_template 'new'
     assert_select 'input[name=?]', 'group[name]'
   end
 
@@ -85,12 +78,13 @@ class GroupsControllerTest < Redmine::ControllerTest
       post :create, :group => {:name => ''}
     end
     assert_response :success
-    assert_select_error /Name cannot be blank/i
+    assert_template 'new'
   end
 
   def test_edit
     get :edit, :id => 10
     assert_response :success
+    assert_template 'edit'
 
     assert_select 'div#tab-content-users'
     assert_select 'div#tab-content-memberships' do
@@ -109,7 +103,7 @@ class GroupsControllerTest < Redmine::ControllerTest
   def test_update_with_failure
     put :update, :id => 10, :group => {:name => ''}
     assert_response :success
-    assert_select_error /Name cannot be blank/i
+    assert_template 'edit'
   end
 
   def test_destroy
@@ -122,7 +116,7 @@ class GroupsControllerTest < Redmine::ControllerTest
   def test_new_users
     get :new_users, :id => 10
     assert_response :success
-    assert_select 'input[name=?]', 'user_search'
+    assert_template 'new_users'
   end
 
   def test_xhr_new_users
@@ -141,6 +135,7 @@ class GroupsControllerTest < Redmine::ControllerTest
     assert_difference 'Group.find(10).users.count', 2 do
       xhr :post, :add_users, :id => 10, :user_ids => ['2', '3']
       assert_response :success
+      assert_template 'add_users'
       assert_equal 'text/javascript', response.content_type
     end
     assert_match /John Smith/, response.body
@@ -156,6 +151,7 @@ class GroupsControllerTest < Redmine::ControllerTest
     assert_difference 'Group.find(10).users.count', -1 do
       xhr :delete, :remove_user, :id => 10, :user_id => '8'
       assert_response :success
+      assert_template 'remove_user'
       assert_equal 'text/javascript', response.content_type
     end
   end

@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class EmailAddressesControllerTest < Redmine::ControllerTest
+class EmailAddressesControllerTest < ActionController::TestCase
   fixtures :users, :email_addresses
 
   def setup
@@ -28,6 +28,7 @@ class EmailAddressesControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     get :index, :user_id => 2
     assert_response :success
+    assert_template 'index'
   end
 
   def test_index_with_additional_emails
@@ -36,6 +37,7 @@ class EmailAddressesControllerTest < Redmine::ControllerTest
 
     get :index, :user_id => 2
     assert_response :success
+    assert_template 'index'
     assert_select '.email', :text => 'another@somenet.foo'
   end
 
@@ -45,6 +47,7 @@ class EmailAddressesControllerTest < Redmine::ControllerTest
 
     xhr :get, :index, :user_id => 2
     assert_response :success
+    assert_template 'index'
     assert_include 'another@somenet.foo', response.body
   end
 
@@ -52,6 +55,7 @@ class EmailAddressesControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 1
     get :index, :user_id => 2
     assert_response :success
+    assert_template 'index'
   end
 
   def test_index_by_another_user_should_be_denied
@@ -84,8 +88,7 @@ class EmailAddressesControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     assert_no_difference 'EmailAddress.count' do
       post :create, :user_id => 2, :email_address => {:address => 'invalid'}
-      assert_response :success
-      assert_select_error /email is invalid/i
+      assert_response 200
     end
   end
 

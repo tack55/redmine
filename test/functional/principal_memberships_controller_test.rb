@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class PrincipalMembershipsControllerTest < Redmine::ControllerTest
+class PrincipalMembershipsControllerTest < ActionController::TestCase
   fixtures :projects, :users, :members, :member_roles, :roles, :groups_users
 
   def setup
@@ -86,6 +86,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_difference 'Member.count' do
       xhr :post, :create, :user_id => 7, :membership => {:project_ids => [3], :role_ids => [2]}, :format => 'js'
       assert_response :success
+      assert_template 'create'
       assert_equal 'text/javascript', response.content_type
     end
     member = Member.order('id DESC').first
@@ -99,6 +100,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_no_difference 'Member.count' do
       xhr :post, :create, :user_id => 7, :membership => {:project_ids => [3]}, :format => 'js'
       assert_response :success
+      assert_template 'create'
       assert_equal 'text/javascript', response.content_type
     end
     assert_include 'alert', response.body, "Alert message not sent"
@@ -117,6 +119,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_no_difference 'Member.count' do
       xhr :put, :update, :user_id => 2, :id => 1, :membership => {:role_ids => [2]}, :format => 'js'
       assert_response :success
+      assert_template 'update'
       assert_equal 'text/javascript', response.content_type
     end
     assert_equal [2], Member.find(1).role_ids
@@ -135,6 +138,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_difference 'Member.count', -1 do
       xhr :delete, :destroy, :user_id => 2, :id => 1
       assert_response :success
+      assert_template 'destroy'
       assert_equal 'text/javascript', response.content_type
     end
     assert_nil Member.find_by_id(1)
@@ -157,6 +161,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_difference 'Group.find(10).members.count' do
       xhr :post, :create, :group_id => 10, :membership => {:project_ids => [2], :role_ids => ['1', '2']}
       assert_response :success
+      assert_template 'create'
       assert_equal 'text/javascript', response.content_type
     end
     assert_match /OnlineStore/, response.body
@@ -166,6 +171,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_no_difference 'Group.find(10).members.count' do
       xhr :post, :create, :group_id => 10, :membership => {:project_ids => [999], :role_ids => ['1', '2']}
       assert_response :success
+      assert_template 'create'
       assert_equal 'text/javascript', response.content_type
     end
     assert_match /alert/, response.body, "Alert message not sent"
@@ -181,6 +187,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_no_difference 'Group.find(10).members.count' do
       xhr :post, :update, :group_id => 10, :id => 6, :membership => {:role_ids => ['1', '3']}
       assert_response :success
+      assert_template 'update'
       assert_equal 'text/javascript', response.content_type
     end
   end
@@ -195,6 +202,7 @@ class PrincipalMembershipsControllerTest < Redmine::ControllerTest
     assert_difference 'Group.find(10).members.count', -1 do
       xhr :delete, :destroy, :group_id => 10, :id => 6
       assert_response :success
+      assert_template 'destroy'
       assert_equal 'text/javascript', response.content_type
     end
   end
