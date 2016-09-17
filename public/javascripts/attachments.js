@@ -189,8 +189,3 @@ function setupFileDrop() {
 }
 
 $(document).ready(setupFileDrop);
-$(document).ready(function(){
-  $("input.deleted_attachment").change(function(){
-    $(this).parents('.existing-attachment').toggleClass('deleted', $(this).is(":checked"));
-  }).change();
-});

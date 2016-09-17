@@ -18,9 +18,9 @@
 class RolesController < ApplicationController
   layout 'admin'
 
-  before_action :require_admin, :except => [:index, :show]
-  before_action :require_admin_or_api_request, :only => [:index, :show]
-  before_action :find_role, :only => [:show, :edit, :update, :destroy]
+  before_filter :require_admin, :except => [:index, :show]
+  before_filter :require_admin_or_api_request, :only => [:index, :show]
+  before_filter :find_role, :only => [:show, :edit, :update, :destroy]
   accept_api_auth :index, :show
 
   require_sudo_mode :create, :update, :destroy
@@ -45,8 +45,7 @@ class RolesController < ApplicationController
 
   def new
     # Prefills the form with 'Non member' role permissions by default
-    @role = Role.new
-    @role.safe_attributes = params[:role] || {:permissions => Role.non_member.permissions}
+    @role = Role.new(params[:role] || {:permissions => Role.non_member.permissions})
     if params[:copy].present? && @copy_from = Role.find_by_id(params[:copy])
       @role.copy_from(@copy_from)
     end
@@ -54,8 +53,7 @@ class RolesController < ApplicationController
   end
 
   def create
-    @role = Role.new
-    @role.safe_attributes = params[:role]
+    @role = Role.new(params[:role])
     if request.post? && @role.save
       # workflow copy
       if !params[:copy_workflow_from].blank? && (copy_from = Role.find_by_id(params[:copy_workflow_from]))
@@ -73,19 +71,18 @@ class RolesController < ApplicationController
   end
 
   def update
-    @role.safe_attributes = params[:role]
-    if @role.save
+    if @role.update_attributes(params[:role])
       respond_to do |format|
         format.html {
           flash[:notice] = l(:notice_successful_update)
           redirect_to roles_path(:page => params[:page])
         }
-        format.js { head 200 }
+        format.js { render :nothing => true }
       end
     else
       respond_to do |format|
         format.html { render :action => 'edit' }
-        format.js { head 422 }
+        format.js { render :nothing => true, :status => 422 }
       end
     end
   end

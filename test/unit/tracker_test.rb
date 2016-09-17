@@ -18,7 +18,7 @@
 require File.expand_path('../../test_helper', __FILE__)
 
 class TrackerTest < ActiveSupport::TestCase
-  fixtures :trackers, :workflows, :issue_statuses, :roles, :issues, :projects, :projects_trackers
+  fixtures :trackers, :workflows, :issue_statuses, :roles, :issues
 
   def test_sorted_scope
     assert_equal Tracker.all.sort, Tracker.sorted.to_a
@@ -26,18 +26,6 @@ class TrackerTest < ActiveSupport::TestCase
 
   def test_named_scope
     assert_equal Tracker.find_by_name('Feature'), Tracker.named('feature').first
-  end
-
-  def test_visible_scope_chained_with_project_rolled_up_trackers
-    project = Project.find(1)
-    role = Role.generate!
-    role.add_permission! :view_issues
-    role.set_permission_trackers :view_issues, [2]
-    role.save!
-    user = User.generate!
-    User.add_to_project user, project, role
-
-    assert_equal [2], project.rolled_up_trackers(false).visible(user).map(&:id)
   end
 
   def test_copy_workflows
@@ -64,7 +52,7 @@ class TrackerTest < ActiveSupport::TestCase
   end
 
   def test_issue_statuses_empty
-    WorkflowTransition.where(:tracker_id => 1).delete_all
+    WorkflowTransition.delete_all("tracker_id = 1")
     assert_equal [], Tracker.find(1).issue_statuses
   end
 
@@ -110,7 +98,7 @@ class TrackerTest < ActiveSupport::TestCase
 
   def test_destroying_a_tracker_without_issues_should_not_raise_an_error
     tracker = Tracker.find(1)
-    Issue.where(:tracker_id => tracker.id).delete_all
+    Issue.delete_all :tracker_id => tracker.id
 
     assert_difference 'Tracker.count', -1 do
       assert_nothing_raised do

@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class AccountControllerTest < Redmine::ControllerTest
+class AccountControllerTest < ActionController::TestCase
   fixtures :users, :email_addresses, :roles
 
   def setup
@@ -27,6 +27,7 @@ class AccountControllerTest < Redmine::ControllerTest
   def test_get_login
     get :login
     assert_response :success
+    assert_template 'login'
 
     assert_select 'input[name=username]'
     assert_select 'input[name=password]'
@@ -130,6 +131,7 @@ class AccountControllerTest < Redmine::ControllerTest
   def test_login_with_wrong_password
     post :login, :username => 'admin', :password => 'bad'
     assert_response :success
+    assert_template 'login'
 
     assert_select 'div.flash.error', :text => /Invalid user or password/
     assert_select 'input[name=username][value=admin]'
@@ -188,6 +190,7 @@ class AccountControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     get :logout
     assert_response :success
+    assert_template 'logout'
 
     assert_equal 2, @request.session[:user_id]
   end
@@ -216,6 +219,8 @@ class AccountControllerTest < Redmine::ControllerTest
     with_settings :self_registration => '3' do
       get :register
       assert_response :success
+      assert_template 'register'
+      assert_not_nil assigns(:user)
 
       assert_select 'input[name=?]', 'user[password]'
       assert_select 'input[name=?]', 'user[password_confirmation]'
@@ -227,7 +232,8 @@ class AccountControllerTest < Redmine::ControllerTest
       @request.env['HTTP_ACCEPT_LANGUAGE'] = 'fr,fr-fr;q=0.8,en-us;q=0.5,en;q=0.3'
       get :register
       assert_response :success
-
+      assert_not_nil assigns(:user)
+      assert_equal 'fr', assigns(:user).language
       assert_select 'select[name=?]', 'user[language]' do
         assert_select 'option[value=fr][selected=selected]'
       end
@@ -381,6 +387,7 @@ class AccountControllerTest < Redmine::ControllerTest
 
     get :lost_password, :token => token.value
     assert_response :success
+    assert_template 'password_recovery'
 
     assert_select 'input[type=hidden][name=token][value=?]', token.value
   end
@@ -422,6 +429,7 @@ class AccountControllerTest < Redmine::ControllerTest
 
     post :lost_password, :token => token.value, :new_password => 'newpass', :new_password_confirmation => 'wrongpass'
     assert_response :success
+    assert_template 'password_recovery'
     assert_not_nil Token.find_by_id(token.id), "Token was deleted"
 
     assert_select 'input[type=hidden][name=token][value=?]', token.value

@@ -118,10 +118,6 @@ class WikiContent < ActiveRecord::Base
       page.project
     end
 
-    def attachments
-      page.nil? ? [] : page.attachments
-    end
-
     # Return true if the content is the current page content
     def current_version?
       page.content.version == self.version

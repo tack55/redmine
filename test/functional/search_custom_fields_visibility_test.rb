@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class SearchCustomFieldsVisibilityTest < Redmine::ControllerTest
+class SearchCustomFieldsVisibilityTest < ActionController::TestCase
   tests SearchController
   fixtures :projects,
            :users,
@@ -64,13 +64,13 @@ class SearchCustomFieldsVisibilityTest < Redmine::ControllerTest
     @users_to_test.each do |user, fields|
       @request.session[:user_id] = user.id
       @fields.each_with_index do |field, i|
-        get :index, :params => {:q => "value#{i}"}
+        get :index, :q => "value#{i}"
         assert_response :success
         # we should get a result only if the custom field is visible
         if fields.include?(field)
-          assert_select '#search-results dt', 1
+          assert_equal 1, assigns(:results).size
         else
-          assert_select '#search-results dt', 0
+          assert_equal 0, assigns(:results).size
         end
       end
     end

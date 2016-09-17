@@ -18,8 +18,8 @@
 class TrackersController < ApplicationController
   layout 'admin'
 
-  before_action :require_admin, :except => :index
-  before_action :require_admin_or_api_request, :only => :index
+  before_filter :require_admin, :except => :index
+  before_filter :require_admin_or_api_request, :only => :index
   accept_api_auth :index
 
   def index
@@ -31,15 +31,13 @@ class TrackersController < ApplicationController
   end
 
   def new
-    @tracker ||= Tracker.new
-    @tracker.safe_attributes = params[:tracker]
+    @tracker ||= Tracker.new(params[:tracker])
     @trackers = Tracker.sorted.to_a
     @projects = Project.all
   end
 
   def create
-    @tracker = Tracker.new
-    @tracker.safe_attributes = params[:tracker]
+    @tracker = Tracker.new(params[:tracker])
     if @tracker.save
       # workflow copy
       if !params[:copy_workflow_from].blank? && (copy_from = Tracker.find_by_id(params[:copy_workflow_from]))
@@ -60,14 +58,13 @@ class TrackersController < ApplicationController
 
   def update
     @tracker = Tracker.find(params[:id])
-    @tracker.safe_attributes = params[:tracker]
-    if @tracker.save
+    if @tracker.update_attributes(params[:tracker])
       respond_to do |format|
         format.html {
           flash[:notice] = l(:notice_successful_update)
           redirect_to trackers_path(:page => params[:page])
         }
-        format.js { head 200 }
+        format.js { render :nothing => true }
       end
     else
       respond_to do |format|
@@ -75,7 +72,7 @@ class TrackersController < ApplicationController
           edit
           render :action => 'edit'
         }
-        format.js { head 422 }
+        format.js { render :nothing => true, :status => 422 }
       end
     end
   end

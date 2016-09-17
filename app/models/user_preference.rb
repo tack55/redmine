@@ -16,23 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class UserPreference < ActiveRecord::Base
-  include Redmine::SafeAttributes
-
   belongs_to :user
   serialize :others
 
   attr_protected :others, :user_id
 
   before_save :set_others_hash
-
-  safe_attributes 'hide_mail',
-    'time_zone',
-    'comments_sorting',
-    'warn_on_leaving_unsaved',
-    'no_self_notified',
-    'textarea_font'
-
-  TEXTAREA_FONT_OPTIONS = ['monospace', 'proportional']
 
   def initialize(attributes=nil, *args)
     super
@@ -79,7 +68,4 @@ class UserPreference < ActiveRecord::Base
 
   def activity_scope; Array(self[:activity_scope]) ; end
   def activity_scope=(value); self[:activity_scope]=value ; end
-
-  def textarea_font; self[:textarea_font] end
-  def textarea_font=(value); self[:textarea_font]=value; end
 end

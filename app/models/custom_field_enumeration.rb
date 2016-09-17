@@ -16,8 +16,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class CustomFieldEnumeration < ActiveRecord::Base
-  include Redmine::SafeAttributes
-
   belongs_to :custom_field
   attr_accessible :name, :active, :position
 
@@ -27,10 +25,6 @@ class CustomFieldEnumeration < ActiveRecord::Base
   before_create :set_position
 
   scope :active, lambda { where(:active => true) }
-
-  safe_attributes 'name',
-    'active',
-    'position'
 
   def to_s
     name.to_s
@@ -62,11 +56,7 @@ class CustomFieldEnumeration < ActiveRecord::Base
       attributes.each do |enumeration_id, enumeration_attributes|
         enumeration = custom_field.enumerations.find_by_id(enumeration_id)
         if enumeration
-          if block_given?
-            yield enumeration, enumeration_attributes
-          else
-            enumeration.attributes = enumeration_attributes
-          end
+          enumeration.attributes = enumeration_attributes
           unless enumeration.save
             raise ActiveRecord::Rollback
           end

@@ -17,8 +17,7 @@
 
 require File.expand_path('../../../../../test_helper', __FILE__)
 
-class Redmine::Views::LabelledFormBuilderTest < Redmine::HelperTest
-  include Rails.application.routes.url_helpers
+class Redmine::Views::LabelledFormBuilderTest < ActionView::TestCase
 
   def test_label_should_output_one_element
     set_language_if_valid 'en'

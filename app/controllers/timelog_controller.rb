@@ -16,15 +16,14 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class TimelogController < ApplicationController
-  menu_item :time_entries
+  menu_item :issues
 
-  before_action :find_time_entry, :only => [:show, :edit, :update]
-  before_action :find_time_entries, :only => [:bulk_edit, :bulk_update, :destroy]
-  before_action :authorize, :only => [:show, :edit, :update, :bulk_edit, :bulk_update, :destroy]
+  before_filter :find_time_entry, :only => [:show, :edit, :update]
+  before_filter :find_time_entries, :only => [:bulk_edit, :bulk_update, :destroy]
+  before_filter :authorize, :only => [:show, :edit, :update, :bulk_edit, :bulk_update, :destroy]
 
-  before_action :find_optional_issue, :only => [:new, :create]
-  before_action :find_optional_project, :only => [:index, :report]
-  before_action :authorize_global, :only => [:new, :create, :index, :report]
+  before_filter :find_optional_project, :only => [:new, :create, :index, :report]
+  before_filter :authorize_global, :only => [:new, :create, :index, :report]
 
   accept_rss_auth :index
   accept_api_auth :index, :show, :create, :update, :destroy
@@ -41,10 +40,12 @@ class TimelogController < ApplicationController
   include QueriesHelper
 
   def index
-    retrieve_time_entry_query
+    @query = TimeEntryQuery.build_from_params(params, :project => @project, :name => '_')
+
     sort_init(@query.sort_criteria.empty? ? [['spent_on', 'desc']] : @query.sort_criteria)
     sort_update(@query.sortable_columns)
     scope = time_entry_scope(:order => sort_clause).
+      includes(:project, :user, :issue).
       preload(:issue => [:project, :tracker, :status, :assigned_to, :priority])
 
     respond_to do |format|
@@ -52,6 +53,7 @@ class TimelogController < ApplicationController
         @entry_count = scope.count
         @entry_pages = Paginator.new @entry_count, per_page_option, params['page']
         @entries = scope.offset(@entry_pages.offset).limit(@entry_pages.per_page).to_a
+        @total_hours = scope.sum(:hours).to_f
 
         render :layout => !request.xhr?
       }
@@ -73,7 +75,7 @@ class TimelogController < ApplicationController
   end
 
   def report
-    retrieve_time_entry_query
+    @query = TimeEntryQuery.build_from_params(params, :project => @project, :name => '_')
     scope = time_entry_scope
 
     @report = Redmine::Helpers::TimeReport.new(@project, @issue, params[:criteria], params[:columns], scope)
@@ -87,7 +89,7 @@ class TimelogController < ApplicationController
   def show
     respond_to do |format|
       # TODO: Implement html response
-      format.html { head 406 }
+      format.html { render :nothing => true, :status => 406 }
       format.api
     end
   end
@@ -172,7 +174,7 @@ class TimelogController < ApplicationController
   end
 
   def bulk_update
-    attributes = parse_params_for_bulk_update(params[:time_entry])
+    attributes = parse_params_for_bulk_time_entry_attributes(params)
 
     unsaved_time_entry_ids = []
     @time_entries.each do |time_entry|
@@ -250,17 +252,11 @@ private
     end
   end
 
-  def find_optional_issue
+  def find_optional_project
     if params[:issue_id].present?
       @issue = Issue.find(params[:issue_id])
       @project = @issue.project
-    else
-      find_optional_project
-    end
-  end
-
-  def find_optional_project
-    if params[:project_id].present?
+    elsif params[:project_id].present?
       @project = Project.find(params[:project_id])
     end
   rescue ActiveRecord::RecordNotFound
@@ -269,10 +265,17 @@ private
 
   # Returns the TimeEntry scope for index and report actions
   def time_entry_scope(options={})
-    @query.results_scope(options)
+    scope = @query.results_scope(options)
+    if @issue
+      scope = scope.on_issue(@issue)
+    end
+    scope
   end
 
-  def retrieve_time_entry_query
-    retrieve_query(TimeEntryQuery, false)
+  def parse_params_for_bulk_time_entry_attributes(params)
+    attributes = (params[:time_entry] || {}).reject {|k,v| v.blank?}
+    attributes.keys.each {|k| attributes[k] = '' if attributes[k] == 'none'}
+    attributes[:custom_field_values].reject! {|k,v| v.blank?} if attributes[:custom_field_values]
+    attributes
   end
 end

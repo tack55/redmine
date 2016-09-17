@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class BoardsControllerTest < Redmine::ControllerTest
+class BoardsControllerTest < ActionController::TestCase
   fixtures :projects, :users, :members, :member_roles, :roles, :boards, :messages, :enabled_modules
 
   def setup
@@ -27,7 +27,9 @@ class BoardsControllerTest < Redmine::ControllerTest
   def test_index
     get :index, :project_id => 1
     assert_response :success
-    assert_select 'table.boards'
+    assert_template 'index'
+    assert_not_nil assigns(:boards)
+    assert_not_nil assigns(:project)
   end
 
   def test_index_not_found
@@ -36,22 +38,21 @@ class BoardsControllerTest < Redmine::ControllerTest
   end
 
   def test_index_should_show_messages_if_only_one_board
-    Project.find(1).boards.to_a.slice(1..-1).each(&:destroy)
+    Project.find(1).boards.slice(1..-1).each(&:destroy)
 
     get :index, :project_id => 1
     assert_response :success
-
-    assert_select 'table.boards', 0
-    assert_select 'table.messages'
+    assert_template 'show'
+    assert_not_nil assigns(:topics)
   end
 
   def test_show
     get :show, :project_id => 1, :id => 1
     assert_response :success
-
-    assert_select 'table.messages tbody' do
-      assert_select 'tr', Board.find(1).topics.count
-    end
+    assert_template 'show'
+    assert_not_nil assigns(:board)
+    assert_not_nil assigns(:project)
+    assert_not_nil assigns(:topics)
   end
 
   def test_show_should_display_sticky_messages_first
@@ -61,12 +62,11 @@ class BoardsControllerTest < Redmine::ControllerTest
     get :show, :project_id => 1, :id => 1
     assert_response :success
 
-    assert_select 'table.messages tbody' do
-      # row is here...
-      assert_select 'tr.sticky'
-      # ...and in first position
-      assert_select 'tr.sticky:first-child'
-    end
+    topics = assigns(:topics)
+    assert_not_nil topics
+    assert topics.size > 1, "topics size was #{topics.size}"
+    assert topics.first.sticky?
+    assert topics.first.updated_on < topics.second.updated_on
   end
 
   def test_show_should_display_message_with_last_reply_first
@@ -79,17 +79,16 @@ class BoardsControllerTest < Redmine::ControllerTest
 
     get :show, :project_id => 1, :id => 1
     assert_response :success
-
-    assert_select 'table.messages tbody' do
-      assert_select "tr#message-#{old_topic.id}"
-      assert_select "tr#message-#{old_topic.id}:first-child"
-    end
+    topics = assigns(:topics)
+    assert_not_nil topics
+    assert_equal old_topic, topics.first
   end
 
   def test_show_with_permission_should_display_the_new_message_form
     @request.session[:user_id] = 2
     get :show, :project_id => 1, :id => 1
     assert_response :success
+    assert_template 'show'
 
     assert_select 'form#message-form' do
       assert_select 'input[name=?]', 'message[subject]'
@@ -99,8 +98,10 @@ class BoardsControllerTest < Redmine::ControllerTest
   def test_show_atom
     get :show, :project_id => 1, :id => 1, :format => 'atom'
     assert_response :success
-
-    assert_select 'feed > entry > title', :text => 'Help: RE: post 2'
+    assert_template 'common/feed'
+    assert_not_nil assigns(:board)
+    assert_not_nil assigns(:project)
+    assert_not_nil assigns(:messages)
   end
 
   def test_show_not_found
@@ -112,6 +113,7 @@ class BoardsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     get :new, :project_id => 1
     assert_response :success
+    assert_template 'new'
 
     assert_select 'select[name=?]', 'board[parent_id]' do
       assert_select 'option', (Project.find(1).boards.size + 1)
@@ -130,6 +132,7 @@ class BoardsControllerTest < Redmine::ControllerTest
 
     get :new, :project_id => 1
     assert_response :success
+    assert_template 'new'
 
     assert_select 'select[name=?]', 'board[parent_id]', 0
   end
@@ -161,14 +164,14 @@ class BoardsControllerTest < Redmine::ControllerTest
       post :create, :project_id => 1, :board => { :name => '', :description => 'Testing board creation'}
     end
     assert_response :success
-    assert_select_error /Name cannot be blank/
+    assert_template 'new'
   end
 
   def test_edit
     @request.session[:user_id] = 2
     get :edit, :project_id => 1, :id => 2
     assert_response :success
-    assert_select 'input[name=?][value=?]', 'board[name]', 'Discussion'
+    assert_template 'edit'
   end
 
   def test_edit_with_parent
@@ -176,6 +179,7 @@ class BoardsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     get :edit, :project_id => 1, :id => board.id
     assert_response :success
+    assert_template 'edit'
 
     assert_select 'select[name=?]', 'board[parent_id]' do
       assert_select 'option[value="2"][selected=selected]'
@@ -203,7 +207,7 @@ class BoardsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2
     put :update, :project_id => 1, :id => 2, :board => { :name => '', :description => 'Testing board update'}
     assert_response :success
-    assert_select_error /Name cannot be blank/
+    assert_template 'edit'
   end
 
   def test_destroy

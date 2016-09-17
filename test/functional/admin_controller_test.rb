@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class AdminControllerTest < Redmine::ControllerTest
+class AdminControllerTest < ActionController::TestCase
   fixtures :projects, :users, :email_addresses, :roles
 
   def setup
@@ -39,21 +39,29 @@ class AdminControllerTest < Redmine::ControllerTest
   def test_projects
     get :projects
     assert_response :success
-    assert_select 'tr.project.closed', 0
+    assert_template 'projects'
+    assert_not_nil assigns(:projects)
+    # active projects only
+    assert_nil assigns(:projects).detect {|u| !u.active?}
   end
 
   def test_projects_with_status_filter
     get :projects, :status => 1
     assert_response :success
-    assert_select 'tr.project.closed', 0
+    assert_template 'projects'
+    assert_not_nil assigns(:projects)
+    # active projects only
+    assert_nil assigns(:projects).detect {|u| !u.active?}
   end
 
   def test_projects_with_name_filter
     get :projects, :name => 'store', :status => ''
     assert_response :success
-
-    assert_select 'tr.project td.name', :text => 'OnlineStore'
-    assert_select 'tr.project', 1
+    assert_template 'projects'
+    projects = assigns(:projects)
+    assert_not_nil projects
+    assert_equal 1, projects.size
+    assert_equal 'OnlineStore', projects.first.name
   end
 
   def test_load_default_configuration_data
@@ -99,7 +107,8 @@ class AdminControllerTest < Redmine::ControllerTest
 
     get :plugins
     assert_response :success
-    assert_select '.nodata'
+    assert_template 'plugins'
+    assert_equal [], assigns(:plugins)
   end
 
   def test_plugins
@@ -116,6 +125,7 @@ class AdminControllerTest < Redmine::ControllerTest
 
     get :plugins
     assert_response :success
+    assert_template 'plugins'
 
     assert_select 'tr#plugin-foo' do
       assert_select 'td span.name', :text => 'Foo plugin'
@@ -130,6 +140,7 @@ class AdminControllerTest < Redmine::ControllerTest
   def test_info
     get :info
     assert_response :success
+    assert_template 'info'
   end
 
   def test_admin_menu_plugin_extension
@@ -149,7 +160,7 @@ class AdminControllerTest < Redmine::ControllerTest
   private
 
   def delete_configuration_data
-    Role.where('builtin = 0').delete_all
+    Role.delete_all('builtin = 0')
     Tracker.delete_all
     IssueStatus.delete_all
     Enumeration.delete_all

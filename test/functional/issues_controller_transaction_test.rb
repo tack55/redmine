@@ -18,7 +18,7 @@
 require File.expand_path('../../test_helper', __FILE__)
 require 'issues_controller'
 
-class IssuesControllerTransactionTest < Redmine::ControllerTest
+class IssuesControllerTransactionTest < ActionController::TestCase
   tests IssuesController
   fixtures :projects,
            :users,
@@ -68,6 +68,7 @@ class IssuesControllerTransactionTest < Redmine::ControllerTest
     end
 
     assert_response :success
+    assert_template 'edit'
 
     assert_select 'div.conflict'
     assert_select 'input[name=?][value=?]', 'conflict_resolution', 'overwrite'
@@ -100,7 +101,7 @@ class IssuesControllerTransactionTest < Redmine::ControllerTest
     end
 
     assert_response :success
-
+    assert_template 'edit'
     attachment = Attachment.order('id DESC').first
     assert_select 'input[name=?][value=?]', 'attachments[p0][token]', attachment.token
     assert_select 'input[name=?][value=?]', 'attachments[p0][filename]', 'testfile.txt'
@@ -116,7 +117,6 @@ class IssuesControllerTransactionTest < Redmine::ControllerTest
             :notes => '',
             :lock_version => (issue.lock_version - 1)
           }
-    assert_response :success
 
     assert_select 'div.conflict'
     assert_select 'input[name=conflict_resolution][value=overwrite]'
@@ -134,9 +134,11 @@ class IssuesControllerTransactionTest < Redmine::ControllerTest
             :lock_version => 2
           },
           :last_journal_id => 1
-    assert_response :success
 
-    assert_select '.conflict-journal', 1
+    assert_not_nil assigns(:conflict_journals)
+    assert_equal 1, assigns(:conflict_journals).size
+    assert_equal 2, assigns(:conflict_journals).first.id
+
     assert_select 'div.conflict', :text => /Some notes with Redmine links/
   end
 
@@ -150,9 +152,9 @@ class IssuesControllerTransactionTest < Redmine::ControllerTest
             :lock_version => 2
           },
           :last_journal_id => ''
-    assert_response :success
 
-    assert_select '.conflict-journal', 2
+    assert_not_nil assigns(:conflict_journals)
+    assert_equal 2, assigns(:conflict_journals).size
     assert_select 'div.conflict', :text => /Some notes with Redmine links/
     assert_select 'div.conflict', :text => /Journal notes/
   end
@@ -162,13 +164,11 @@ class IssuesControllerTransactionTest < Redmine::ControllerTest
 
     @request.session[:user_id] = 2
     put :update, :id => 1, :issue => {:fixed_version_id => 4, :lock_version => 2}, :last_journal_id => ''
-    assert_response :success
-    assert_select '.conflict-journal', :text => /Privates notes/
+    assert_include journal, assigns(:conflict_journals)
 
     Role.find(1).remove_permission! :view_private_notes
     put :update, :id => 1, :issue => {:fixed_version_id => 4, :lock_version => 2}, :last_journal_id => ''
-    assert_response :success
-    assert_select '.conflict-journal', :text => /Privates notes/, :count => 0
+    assert_not_include journal, assigns(:conflict_journals)
   end
 
   def test_update_stale_issue_with_overwrite_conflict_resolution_should_update

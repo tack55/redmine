@@ -16,9 +16,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class MyController < ApplicationController
-  before_action :require_login
+  before_filter :require_login
   # let user change user's password when user has to
-  skip_before_action :check_password_change, :only => :password
+  skip_before_filter :check_password_change, :only => :password
 
   require_sudo_mode :account, only: :post
   require_sudo_mode :reset_rss_key, :reset_api_key, :show_api_key, :destroy
@@ -56,8 +56,8 @@ class MyController < ApplicationController
     @user = User.current
     @pref = @user.pref
     if request.post?
-      @user.safe_attributes = params[:user]
-      @user.pref.safe_attributes = params[:pref]
+      @user.safe_attributes = params[:user] if params[:user]
+      @user.pref.attributes = params[:pref] if params[:pref]
       if @user.save
         @user.pref.save
         set_language_if_valid @user.language
@@ -206,6 +206,6 @@ class MyController < ApplicationController
         @user.pref.save
       end
     end
-    head 200
+    render :nothing => true
   end
 end

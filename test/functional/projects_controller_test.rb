@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class ProjectsControllerTest < Redmine::ControllerTest
+class ProjectsControllerTest < ActionController::TestCase
   fixtures :projects, :versions, :users, :email_addresses, :roles, :members,
            :member_roles, :issues, :journals, :journal_details,
            :trackers, :projects_trackers, :issue_statuses,
@@ -33,6 +33,10 @@ class ProjectsControllerTest < Redmine::ControllerTest
   def test_index_by_anonymous_should_not_show_private_projects
     get :index
     assert_response :success
+    assert_template 'index'
+    projects = assigns(:projects)
+    assert_not_nil projects
+    assert projects.all?(&:is_public?)
 
     assert_select 'ul' do
       assert_select 'li' do
@@ -48,6 +52,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
   def test_index_atom
     get :index, :format => 'atom'
     assert_response :success
+    assert_template 'common/feed'
     assert_select 'feed>title', :text => 'Redmine: Latest projects'
     assert_select 'feed>entry', :count => Project.visible(User.current).count
   end
@@ -55,6 +60,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
   test "#index by non-admin user with view_time_entries permission should show overall spent time link" do
     @request.session[:user_id] = 3
     get :index
+    assert_template 'index'
     assert_select 'a[href=?]', '/time_entries'
   end
 
@@ -65,14 +71,15 @@ class ProjectsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 3
 
     get :index
+    assert_template 'index'
     assert_select 'a[href=?]', '/time_entries', 0
   end
 
   test "#index by non-admin user with permission should show add project link" do
     Role.find(1).add_permission! :add_project
     @request.session[:user_id] = 2
-
     get :index
+    assert_template 'index'
     assert_select 'a[href=?]', '/projects/new'
   end
 
@@ -81,8 +88,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
     get :new
     assert_response :success
-    assert_select 'input[name=?]', 'project[name]'
-    assert_select 'select[name=?]', 'project[parent_id]'
+    assert_template 'new'
   end
 
   test "#new by non-admin user with add_project permission should accept get" do
@@ -91,7 +97,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
     get :new
     assert_response :success
-    assert_select 'input[name=?]', 'project[name]'
+    assert_template 'new'
     assert_select 'select[name=?]', 'project[parent_id]', 0
   end
 
@@ -102,28 +108,13 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
     get :new, :parent_id => 'ecookbook'
     assert_response :success
+    assert_template 'new'
 
     assert_select 'select[name=?]', 'project[parent_id]' do
       # parent project selected
       assert_select 'option[value="1"][selected=selected]'
       # no empty value
       assert_select 'option[value=""]', 0
-    end
-  end
-
-  def test_new_by_non_admin_should_display_modules_if_default_role_is_allowed_to_select_modules
-    Role.non_member.add_permission!(:add_project)
-    default_role = Role.generate!(:permissions => [:view_issues])
-    user = User.generate!
-    @request.session[:user_id] = user.id
-
-    with_settings :new_project_user_role_id => default_role.id.to_s do
-      get :new
-      assert_select 'input[name=?]', 'project[enabled_module_names][]', 0
-
-      default_role.add_permission!(:select_project_modules)
-      get :new
-      assert_select 'input[name=?]', 'project[enabled_module_names][]'
     end
   end
 
@@ -224,7 +215,6 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
   test "#create by non-admin user with add_project permission should fail with parent_id" do
     Role.non_member.add_permission! :add_project
-    User.find(9).update! :language => 'en'
     @request.session[:user_id] = 9
 
     assert_no_difference 'Project.count' do
@@ -237,7 +227,9 @@ class ProjectsControllerTest < Redmine::ControllerTest
                               }
     end
     assert_response :success
-    assert_select_error /Subproject of is invalid/
+    project = assigns(:project)
+    assert_kind_of Project, project
+    assert_not_equal [], project.errors[:parent_id]
   end
 
   test "#create by non-admin user with add_subprojects permission should create a project with a parent_id" do
@@ -254,7 +246,6 @@ class ProjectsControllerTest < Redmine::ControllerTest
                             }
     assert_redirected_to '/projects/blog/settings'
     project = Project.find_by_name('blog')
-    assert_equal 1, project.parent_id
   end
 
   test "#create by non-admin user with add_subprojects permission should fail without parent_id" do
@@ -271,7 +262,9 @@ class ProjectsControllerTest < Redmine::ControllerTest
                               }
     end
     assert_response :success
-    assert_select_error /Subproject of is invalid/
+    project = assigns(:project)
+    assert_kind_of Project, project
+    assert_not_equal [], project.errors[:parent_id]
   end
 
   test "#create by non-admin user with add_subprojects permission should fail with unauthorized parent_id" do
@@ -290,35 +283,9 @@ class ProjectsControllerTest < Redmine::ControllerTest
                               }
     end
     assert_response :success
-    assert_select_error /Subproject of is invalid/
-  end
-
-  def test_create_by_non_admin_should_accept_modules_if_default_role_is_allowed_to_select_modules
-    Role.non_member.add_permission!(:add_project)
-    default_role = Role.generate!(:permissions => [:view_issues, :add_project])
-    user = User.generate!
-    @request.session[:user_id] = user.id
-
-    with_settings :new_project_user_role_id => default_role.id.to_s, :default_projects_modules => %w(news files) do
-      project = new_record(Project) do
-        post :create, :project => {
-            :name => "blog1",
-            :identifier => "blog1",
-            :enabled_module_names => ["issue_tracking", "repository"]
-          }
-      end
-      assert_equal %w(files news), project.enabled_module_names.sort
-
-      default_role.add_permission!(:select_project_modules)
-      project = new_record(Project) do
-        post :create, :project => {
-            :name => "blog2",
-            :identifier => "blog2",
-            :enabled_module_names => ["issue_tracking", "repository"]
-          }
-      end
-      assert_equal %w(issue_tracking repository), project.enabled_module_names.sort
-    end
+    project = assigns(:project)
+    assert_kind_of Project, project
+    assert_not_equal [], project.errors[:parent_id]
   end
 
   def test_create_subproject_with_inherit_members_should_inherit_members
@@ -351,23 +318,26 @@ class ProjectsControllerTest < Redmine::ControllerTest
         }
       end
       assert_response :success
-      %w(issue_tracking news).each do |mod|
-        assert_select 'input[name=?][value=?][checked=checked]', 'project[enabled_module_names][]', mod
-      end
-      assert_select 'input[name=?][checked=checked]', 'project[enabled_module_names][]', :count => 2
+      project = assigns(:project)
+      assert_equal %w(issue_tracking news), project.enabled_module_names.sort
     end
   end
 
   def test_show_by_id
     get :show, :id => 1
     assert_response :success
-    assert_select '#header h1', :text => "eCookbook"
+    assert_template 'show'
+    assert_not_nil assigns(:project)
   end
 
   def test_show_by_identifier
     get :show, :id => 'ecookbook'
     assert_response :success
-    assert_select '#header h1', :text => "eCookbook"
+    assert_template 'show'
+    assert_not_nil assigns(:project)
+    assert_equal Project.find_by_identifier('ecookbook'), assigns(:project)
+
+    assert_select 'li', :text => /Development status/
   end
 
   def test_show_should_not_display_empty_sidebar
@@ -380,18 +350,12 @@ class ProjectsControllerTest < Redmine::ControllerTest
     assert_select '#main.nosidebar'
   end
 
-  def test_show_should_display_visible_custom_fields
-    ProjectCustomField.find_by_name('Development status').update_attribute :visible, true
-    get :show, :id => 'ecookbook'
-    assert_response :success
-
-    assert_select 'li', :text => /Development status/
-  end
-
   def test_show_should_not_display_hidden_custom_fields
     ProjectCustomField.find_by_name('Development status').update_attribute :visible, false
     get :show, :id => 'ecookbook'
     assert_response :success
+    assert_template 'show'
+    assert_not_nil assigns(:project)
 
     assert_select 'li', :text => /Development status/, :count => 0
   end
@@ -422,6 +386,9 @@ class ProjectsControllerTest < Redmine::ControllerTest
     project.custom_values.first.update_attribute(:value, nil)
     get :show, :id => 'ecookbook'
     assert_response :success
+    assert_template 'show'
+    assert_not_nil assigns(:project)
+    assert_equal Project.find_by_identifier('ecookbook'), assigns(:project)
   end
 
   def show_archived_project_should_be_denied
@@ -430,13 +397,14 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
     get :show, :id => 'ecookbook'
     assert_response 403
+    assert_nil assigns(:project)
     assert_select 'p', :text => /archived/
-    assert_not_include project.name, response.body
   end
 
   def test_show_should_not_show_private_subprojects_that_are_not_visible
     get :show, :id => 'ecookbook'
     assert_response :success
+    assert_template 'show'
     assert_select 'a', :text => /Private child/, :count => 0
   end
 
@@ -444,6 +412,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2 # manager who is a member of the private subproject
     get :show, :id => 'ecookbook'
     assert_response :success
+    assert_template 'show'
     assert_select 'a', :text => /Private child/
   end
 
@@ -451,14 +420,14 @@ class ProjectsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2 # manager
     get :settings, :id => 1
     assert_response :success
-
-    assert_select 'input[name=?]', 'project[name]'
+    assert_template 'settings'
   end
 
   def test_settings_of_subproject
     @request.session[:user_id] = 2
     get :settings, :id => 'private-child'
     assert_response :success
+    assert_template 'settings'
 
     assert_select 'input[type=checkbox][name=?]', 'project[inherit_members]'
   end
@@ -485,40 +454,11 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
     get :settings, :id => 1
     assert_response :success
+    assert_template 'settings'
 
     assert_select 'form[action=?]', '/projects/ecookbook/wiki' do
       assert_select 'input[name=?]', 'wiki[start_page]'
     end
-  end
-
-  def test_settings_should_accept_version_status_filter
-    @request.session[:user_id] = 2
-
-    get :settings, :id => 'ecookbook', :tab => 'versions', :version_status => 'locked'
-    assert_response :success
-
-    assert_select 'select[name=version_status]' do
-      assert_select 'option[value=locked][selected=selected]'
-    end
-    assert_select 'table.versions tbody' do
-      assert_select 'tr', 1
-      assert_select 'td.name', :text => '1.0'
-    end
-    assert_select 'a#tab-versions[href=?]', '/projects/ecookbook/settings/versions?version_status=locked'
-  end
-
-  def test_settings_should_accept_version_name_filter
-    @request.session[:user_id] = 2
-
-    get :settings, :id => 'ecookbook', :tab => 'versions', :version_status => '', :version_name => '.1'
-    assert_response :success
-
-    assert_select 'input[name=version_name][value=?]', '.1'
-    assert_select 'table.versions tbody' do
-      assert_select 'tr', 1
-      assert_select 'td.name', :text => '0.1'
-    end
-    assert_select 'a#tab-versions[href=?]', '/projects/ecookbook/settings/versions?version_name=.1&version_status='
   end
 
   def test_update
@@ -534,6 +474,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 2 # manager
     post :update, :id => 1, :project => {:name => ''}
     assert_response :success
+    assert_template 'settings'
     assert_select_error /name cannot be blank/i
   end
 
@@ -580,8 +521,8 @@ class ProjectsControllerTest < Redmine::ControllerTest
     assert_no_difference 'Project.count' do
       delete :destroy, :id => 2
       assert_response :success
+      assert_template 'destroy'
     end
-    assert_select '.warning', :text => /Are you sure you want to delete this project/
   end
 
   def test_destroy_without_confirmation_should_show_confirmation_with_subprojects
@@ -590,6 +531,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
     assert_no_difference 'Project.count' do
       delete :destroy, :id => 1
       assert_response :success
+      assert_template 'destroy'
     end
     assert_select 'strong',
                   :text => ['Private child of eCookbook',
@@ -661,12 +603,13 @@ class ProjectsControllerTest < Redmine::ControllerTest
 
   def test_get_copy
     @request.session[:user_id] = 1 # admin
-    orig = Project.find(1)
-
-    get :copy, :id => orig.id
+    get :copy, :id => 1
     assert_response :success
+    assert_template 'copy'
+    assert assigns(:project)
+    assert_equal Project.find(1).description, assigns(:project).description
+    assert_nil assigns(:project).id
 
-    assert_select 'textarea[name=?]', 'project[description]', :text => orig.description
     assert_select 'input[name=?][value=?]', 'project[enabled_module_names][]', 'issue_tracking', 1
   end
 
@@ -724,7 +667,7 @@ class ProjectsControllerTest < Redmine::ControllerTest
     @request.session[:user_id] = 1
     post :copy, :id => 1, :project => {:name => 'Copy', :identifier => ''}
     assert_response :success
-    assert_select_error /Identifier cannot be blank/
+    assert_template 'copy'
   end
 
   def test_jump_should_redirect_to_active_tab
@@ -735,11 +678,13 @@ class ProjectsControllerTest < Redmine::ControllerTest
   def test_jump_should_not_redirect_to_inactive_tab
     get :show, :id => 3, :jump => 'documents'
     assert_response :success
+    assert_template 'show'
   end
 
   def test_jump_should_not_redirect_to_unknown_tab
     get :show, :id => 3, :jump => 'foobar'
     assert_response :success
+    assert_template 'show'
   end
 
   def test_body_should_have_project_css_class

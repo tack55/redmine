@@ -100,7 +100,7 @@ class User < Principal
   attr_accessor :remote_ip
 
   # Prevents unauthorized assignments
-  attr_protected :password, :password_confirmation, :hashed_password
+  attr_protected :login, :admin, :password, :password_confirmation, :hashed_password
 
   LOGIN_LENGTH_LIMIT = 60
   MAIL_LENGTH_LIMIT = 60
@@ -140,7 +140,7 @@ class User < Principal
   scope :having_mail, lambda {|arg|
     addresses = Array.wrap(arg).map {|a| a.to_s.downcase}
     if addresses.any?
-      joins(:email_addresses).where("LOWER(#{EmailAddress.table_name}.address) IN (?)", addresses).distinct
+      joins(:email_addresses).where("LOWER(#{EmailAddress.table_name}.address) IN (?)", addresses).uniq
     else
       none
     end
@@ -696,15 +696,10 @@ class User < Principal
     'custom_fields',
     'identity_url'
 
-  safe_attributes 'login',
-    :if => lambda {|user, current_user| user.new_record?}
-
   safe_attributes 'status',
     'auth_source_id',
     'generate_password',
     'must_change_passwd',
-    'login',
-    'admin',
     :if => lambda {|user, current_user| current_user.admin?}
 
   safe_attributes 'group_ids',
@@ -825,11 +820,11 @@ class User < Principal
     Message.where(['author_id = ?', id]).update_all(['author_id = ?', substitute.id])
     News.where(['author_id = ?', id]).update_all(['author_id = ?', substitute.id])
     # Remove private queries and keep public ones
-    ::Query.where('user_id = ? AND visibility = ?', id, ::Query::VISIBILITY_PRIVATE).delete_all
+    ::Query.delete_all ['user_id = ? AND visibility = ?', id, ::Query::VISIBILITY_PRIVATE]
     ::Query.where(['user_id = ?', id]).update_all(['user_id = ?', substitute.id])
     TimeEntry.where(['user_id = ?', id]).update_all(['user_id = ?', substitute.id])
-    Token.where('user_id = ?', id).delete_all
-    Watcher.where('user_id = ?', id).delete_all
+    Token.delete_all ['user_id = ?', id]
+    Watcher.delete_all ['user_id = ?', id]
     WikiContent.where(['author_id = ?', id]).update_all(['author_id = ?', substitute.id])
     WikiContent::Version.where(['author_id = ?', id]).update_all(['author_id = ?', substitute.id])
   end

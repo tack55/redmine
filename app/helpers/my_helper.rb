@@ -41,7 +41,7 @@ module MyHelper
   end
 
   def issuesreportedbyme_items
-    Issue.visible.open.
+    Issue.visible.
       where(:author_id => User.current.id).
       limit(10).
       includes(:status, :project, :tracker).

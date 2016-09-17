@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class RepositoriesGitControllerTest < Redmine::ControllerTest
+class RepositoriesGitControllerTest < ActionController::TestCase
   tests RepositoriesController
 
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles,
@@ -94,9 +94,9 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       @project.repository.destroy
       get :new, :project_id => 'subproject1', :repository_scm => 'Git'
       assert_response :success
-      assert_select 'select[name=?]', 'repository_scm' do
-        assert_select 'option[value=?][selected=selected]', 'Git'
-      end
+      assert_template 'new'
+      assert_kind_of Repository::Git, assigns(:repository)
+      assert assigns(:repository).new_record?
     end
 
     def test_browse_root
@@ -107,23 +107,20 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
 
       get :show, :id => PRJ_ID
       assert_response :success
-
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 9
-        assert_select 'tr.dir td.filename_no_report a', :text => 'images'
-        assert_select 'tr.dir td.filename_no_report a', :text => 'this_is_a_really_long_and_verbose_directory_name'
-        assert_select 'tr.dir td.filename_no_report a', :text => 'sources'
-        assert_select 'tr.file td.filename_no_report a', :text => 'README'
-        assert_select 'tr.file td.filename_no_report a', :text => 'copied_README'
-        assert_select 'tr.file td.filename_no_report a', :text => 'new_file.txt'
-        assert_select 'tr.file td.filename_no_report a', :text => 'renamed_test.txt'
-        assert_select 'tr.file td.filename_no_report a', :text => 'filemane with spaces.txt'
-        assert_select 'tr.file td.filename_no_report a', :text => 'filename with a leading space.txt'
-      end
-
-      assert_select 'table.changesets tbody' do
-        assert_select 'tr'
-      end
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal 9, assigns(:entries).size
+      assert assigns(:entries).detect {|e| e.name == 'images' && e.kind == 'dir'}
+      assert assigns(:entries).detect {|e| e.name == 'this_is_a_really_long_and_verbose_directory_name' && e.kind == 'dir'}
+      assert assigns(:entries).detect {|e| e.name == 'sources' && e.kind == 'dir'}
+      assert assigns(:entries).detect {|e| e.name == 'README' && e.kind == 'file'}
+      assert assigns(:entries).detect {|e| e.name == 'copied_README' && e.kind == 'file'}
+      assert assigns(:entries).detect {|e| e.name == 'new_file.txt' && e.kind == 'file'}
+      assert assigns(:entries).detect {|e| e.name == 'renamed_test.txt' && e.kind == 'file'}
+      assert assigns(:entries).detect {|e| e.name == 'filemane with spaces.txt' && e.kind == 'file'}
+      assert assigns(:entries).detect {|e| e.name == ' filename with a leading space.txt ' && e.kind == 'file'}
+      assert_not_nil assigns(:changesets)
+      assert assigns(:changesets).size > 0
     end
 
     def test_browse_branch
@@ -133,18 +130,15 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       assert_equal NUM_REV, @repository.changesets.count
       get :show, :id => PRJ_ID, :rev => 'test_branch'
       assert_response :success
-
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 4
-        assert_select 'tr.dir td.filename_no_report a', :text => 'images'
-        assert_select 'tr.dir td.filename_no_report a', :text => 'sources'
-        assert_select 'tr.file td.filename_no_report a', :text => 'README'
-        assert_select 'tr.file td.filename_no_report a', :text => 'test.txt'
-      end
-
-      assert_select 'table.changesets tbody' do
-        assert_select 'tr'
-      end
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal 4, assigns(:entries).size
+      assert assigns(:entries).detect {|e| e.name == 'images' && e.kind == 'dir'}
+      assert assigns(:entries).detect {|e| e.name == 'sources' && e.kind == 'dir'}
+      assert assigns(:entries).detect {|e| e.name == 'README' && e.kind == 'file'}
+      assert assigns(:entries).detect {|e| e.name == 'test.txt' && e.kind == 'file'}
+      assert_not_nil assigns(:changesets)
+      assert assigns(:changesets).size > 0
     end
 
     def test_browse_tag
@@ -158,9 +152,11 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
        ].each do |t1|
         get :show, :id => PRJ_ID, :rev => t1
         assert_response :success
-
-        assert_select 'table.entries tbody tr'
-        assert_select 'table.changesets tbody tr'
+        assert_template 'show'
+        assert_not_nil assigns(:entries)
+        assert assigns(:entries).size > 0
+        assert_not_nil assigns(:changesets)
+        assert assigns(:changesets).size > 0
       end
     end
 
@@ -171,12 +167,15 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       assert_equal NUM_REV, @repository.changesets.count
       get :show, :id => PRJ_ID, :path => repository_path_hash(['images'])[:param]
       assert_response :success
-
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 1
-        assert_select 'tr.file td.filename_no_report a', :text => 'edit.png'
-      end
-      assert_select 'table.changesets tbody tr'
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal ['edit.png'], assigns(:entries).collect(&:name)
+      entry = assigns(:entries).detect {|e| e.name == 'edit.png'}
+      assert_not_nil entry
+      assert_equal 'file', entry.kind
+      assert_equal 'images/edit.png', entry.path
+      assert_not_nil assigns(:changesets)
+      assert assigns(:changesets).size > 0
     end
 
     def test_browse_at_given_revision
@@ -187,17 +186,18 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       get :show, :id => PRJ_ID, :path => repository_path_hash(['images'])[:param],
           :rev => '7234cb2750b63f47bff735edc50a1c0a433c2518'
       assert_response :success
-
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 1
-        assert_select 'tr.file td.filename_no_report a', :text => 'delete.png'
-      end
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal ['delete.png'], assigns(:entries).collect(&:name)
+      assert_not_nil assigns(:changesets)
+      assert assigns(:changesets).size > 0
     end
 
     def test_changes
       get :changes, :id => PRJ_ID,
           :path => repository_path_hash(['images', 'edit.png'])[:param]
       assert_response :success
+      assert_template 'changes'
       assert_select 'h2', :text => /edit.png/
     end
 
@@ -205,6 +205,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       get :entry, :id => PRJ_ID,
           :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param]
       assert_response :success
+      assert_template 'entry'
       # Line 11
       assert_select 'tr#L11 td.line-code', :text => /WITHOUT ANY WARRANTY/
     end
@@ -223,6 +224,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
                 :path => repository_path_hash(['latin-1-dir', "test-#{CHAR_1_HEX}.txt"])[:param],
                 :rev => r1
             assert_response :success
+            assert_template 'entry'
             assert_select 'tr#L1 td.line-code', :text => /test-#{CHAR_1_HEX}.txt/
           end
         end
@@ -242,8 +244,9 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       get :entry, :id => PRJ_ID,
           :path => repository_path_hash(['sources'])[:param]
       assert_response :success
-      assert_select 'h2 a', :text => 'sources'
-      assert_select 'table.entries tbody'
+      assert_template 'show'
+      assert_not_nil assigns(:entry)
+      assert_equal 'sources', assigns(:entry).name
     end
 
     def test_diff
@@ -260,6 +263,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
             :rev  => '2f9c0091c754a91af7a9c478e36556b4bde8dcf7',
             :type => dt
         assert_response :success
+        assert_template 'diff'
         # Line 22 removed
         assert_select 'th.line-num:contains(22) ~ td.diff_out', :text => /def remove/
         assert_select 'h2', :text => /2f9c0091/
@@ -280,6 +284,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
               :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param],
               :type => dt
           assert_response :success
+          assert_template 'diff'
           # Line 22 removed
           assert_select 'th.line-num:contains(22) ~ td.diff_out', :text => /def remove/
           assert_select 'h2', :text => /2f9c0091/
@@ -325,6 +330,9 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
             :rev_to => '2f9c0091c754a91af7a9c478e36556b4bde8dcf7',
             :type   => dt
         assert_response :success
+        assert_template 'diff'
+        diff = assigns(:diff)
+        assert_not_nil diff
         assert_select 'h2', :text => /2f9c0091:61b685fb/
         assert_select 'form[action=?]', '/projects/subproject1/repository/revisions/61b685fbe55ab05b5ac68402d5720c1a6ac973d1/diff'
         assert_select 'input#rev_to[type=hidden][name=rev_to][value=?]', '2f9c0091c754a91af7a9c478e36556b4bde8dcf7'
@@ -348,6 +356,9 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
           :rev_to => '2f9c0091c754a91a',
           :type   => 'inline'
       assert_response :success
+      assert_template 'diff'
+      diff = assigns(:diff)
+      assert_not_nil diff
       assert_select 'form[action=?]', '/projects/subproject1/repository/test-diff-path/revisions/61b685fbe55ab05b/diff'
       assert_select 'input#rev_to[type=hidden][name=rev_to][value=?]', '2f9c0091c754a91a'
     end
@@ -361,6 +372,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
             ['inline', 'sbs'].each do |dt|
               get :diff, :id => PRJ_ID, :rev => r1, :type => dt
               assert_response :success
+              assert_template 'diff'
               assert_select 'table' do
                 assert_select 'thead th.filename', :text => /latin-1-dir\/test-#{CHAR_1_HEX}.txt/
                 assert_select 'tbody td.diff_in', :text => /test-#{CHAR_1_HEX}.txt/
@@ -374,6 +386,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
     def test_diff_should_show_filenames
       get :diff, :id => PRJ_ID, :rev => 'deff712f05a90d96edbd70facc47d944be5897e3', :type => 'inline'
       assert_response :success
+      assert_template 'diff'
       # modified file
       assert_select 'th.filename', :text => 'sources/watchers_controller.rb'
       # deleted file
@@ -392,6 +405,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
           :id   => PRJ_ID,
           :rev  => '2f9c0091c754a91af7a9c478e36556b4bde8dcf7'
       assert_response :success
+      assert_template 'diff'
       user.reload
       assert_equal "inline", user.pref[:diff_type]
       get :diff,
@@ -399,6 +413,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
           :rev  => '2f9c0091c754a91af7a9c478e36556b4bde8dcf7',
           :type => 'sbs'
       assert_response :success
+      assert_template 'diff'
       user.reload
       assert_equal "sbs", user.pref[:diff_type]
     end
@@ -407,6 +422,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       get :annotate, :id => PRJ_ID,
           :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param]
       assert_response :success
+      assert_template 'annotate'
 
       # Line 23, changeset 2f9c0091
       assert_select 'tr' do
@@ -425,6 +441,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       get :annotate, :id => PRJ_ID, :rev => 'deff7',
           :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param]
       assert_response :success
+      assert_template 'annotate'
       assert_select 'h2', :text => /@ deff712f/
     end
 
@@ -432,7 +449,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       with_settings :default_language => 'en' do
         get :annotate, :id => PRJ_ID,
             :path => repository_path_hash(['images', 'edit.png'])[:param]
-        assert_response :success
+        assert_response 500
         assert_select 'p#errorExplanation', :text => /cannot be annotated/
       end
     end
@@ -442,13 +459,14 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
         get :annotate, :id => PRJ_ID,
             :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param],
             :rev => 'deff712f'
-        assert_response :success
+        assert_response 500
         assert_select 'p#errorExplanation', :text => /exceeds the maximum text file size/
 
         get :annotate, :id => PRJ_ID,
             :path => repository_path_hash(['README'])[:param],
             :rev => '7234cb2'
         assert_response :success
+        assert_template 'annotate'
       end
     end
 
@@ -502,6 +520,8 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       @project.reload
       assert_equal NUM_REV, @repository.changesets.count
       get :revisions, :id => PRJ_ID
+      assert_response :success
+      assert_template 'revisions'
       assert_select 'form[method=get][action=?]', '/projects/subproject1/repository/revision'
     end
 
@@ -513,6 +533,7 @@ class RepositoriesGitControllerTest < Redmine::ControllerTest
       ['61b685fbe55ab05b5ac68402d5720c1a6ac973d1', '61b685f'].each do |r|
         get :revision, :id => PRJ_ID, :rev => r
         assert_response :success
+        assert_template 'revision'
       end
     end
 

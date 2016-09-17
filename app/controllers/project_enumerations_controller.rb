@@ -16,8 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 class ProjectEnumerationsController < ApplicationController
-  before_action :find_project_by_project_id
-  before_action :authorize
+  before_filter :find_project_by_project_id
+  before_filter :authorize
 
   def update
     if params[:enumerations]

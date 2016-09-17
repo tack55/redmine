@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class RepositoriesCvsControllerTest < Redmine::ControllerTest
+class RepositoriesCvsControllerTest < ActionController::TestCase
   tests RepositoriesController
 
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles,
@@ -48,10 +48,9 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       @project.repository.destroy
       get :new, :project_id => 'subproject1', :repository_scm => 'Cvs'
       assert_response :success
-
-      assert_select 'select[name=?]', 'repository_scm' do
-        assert_select 'option[value=?][selected=selected]', 'Cvs'
-      end
+      assert_template 'new'
+      assert_kind_of Repository::Cvs, assigns(:repository)
+      assert assigns(:repository).new_record?
     end
 
     def test_browse_root
@@ -61,16 +60,18 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       assert_equal NUM_REV, @repository.changesets.count
       get :show, :id => PRJ_ID
       assert_response :success
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal 3, assigns(:entries).size
 
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 3
-        assert_select 'tr.dir td.filename a', :text => 'images'
-        assert_select 'tr.file td.filename a', :text => 'README'
-      end
+      entry = assigns(:entries).detect {|e| e.name == 'images'}
+      assert_equal 'dir', entry.kind
 
-      assert_select 'table.changesets tbody' do
-        assert_select 'tr'
-      end
+      entry = assigns(:entries).detect {|e| e.name == 'README'}
+      assert_equal 'file', entry.kind
+
+      assert_not_nil assigns(:changesets)
+      assert assigns(:changesets).size > 0
     end
 
     def test_browse_directory
@@ -80,13 +81,13 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       assert_equal NUM_REV, @repository.changesets.count
       get :show, :id => PRJ_ID, :path => repository_path_hash(['images'])[:param]
       assert_response :success
-
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 3
-        assert_select 'tr.file td.filename a', :text => 'add.png'
-        assert_select 'tr.file td.filename a', :text => 'delete.png'
-        assert_select 'tr.file td.filename a', :text => 'edit.png'
-      end
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal ['add.png', 'delete.png', 'edit.png'], assigns(:entries).collect(&:name)
+      entry = assigns(:entries).detect {|e| e.name == 'edit.png'}
+      assert_not_nil entry
+      assert_equal 'file', entry.kind
+      assert_equal 'images/edit.png', entry.path
     end
 
     def test_browse_at_given_revision
@@ -97,12 +98,9 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       get :show, :id => PRJ_ID, :path => repository_path_hash(['images'])[:param],
           :rev => 1
       assert_response :success
-
-      assert_select 'table.entries tbody' do
-        assert_select 'tr', 2
-        assert_select 'tr.file td.filename a', :text => 'delete.png'
-        assert_select 'tr.file td.filename a', :text => 'edit.png'
-      end
+      assert_template 'show'
+      assert_not_nil assigns(:entries)
+      assert_equal ['delete.png', 'edit.png'], assigns(:entries).collect(&:name)
     end
 
     def test_entry
@@ -113,7 +111,7 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       get :entry, :id => PRJ_ID,
           :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param]
       assert_response :success
-
+      assert_template 'entry'
       assert_select 'td.line-code', :text => /before_filter/, :count => 0
     end
 
@@ -127,7 +125,7 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
           :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param],
           :rev => 2
       assert_response :success
-
+      assert_template 'entry'
       # this line was removed in r3
       assert_select 'td.line-code', :text => /before_filter/
     end
@@ -161,7 +159,9 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       get :entry, :id => PRJ_ID,
           :path => repository_path_hash(['sources'])[:param]
       assert_response :success
-      assert_select 'table.entries tbody'
+      assert_template 'show'
+      assert_not_nil assigns(:entry)
+      assert_equal 'sources', assigns(:entry).name
     end
 
     def test_diff
@@ -172,7 +172,7 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       ['inline', 'sbs'].each do |dt|
         get :diff, :id => PRJ_ID, :rev => 3, :type => dt
         assert_response :success
-
+        assert_template 'diff'
         assert_select 'td.line-code.diff_out', :text => /before_filter :require_login/
         assert_select 'td.line-code.diff_in', :text => /with one change/
       end
@@ -186,7 +186,7 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       ['inline', 'sbs'].each do |dt|
         get :diff, :id => PRJ_ID, :rev => 1, :type => dt
         assert_response :success
-
+        assert_template 'diff'
         assert_select 'td.line-code.diff_in', :text => /watched.remove_watcher/
         assert_select 'th.filename', :text => /test\/README/
         assert_select 'th.filename', :text => /test\/images\/delete.png/
@@ -203,6 +203,7 @@ class RepositoriesCvsControllerTest < Redmine::ControllerTest
       get :annotate, :id => PRJ_ID,
           :path => repository_path_hash(['sources', 'watchers_controller.rb'])[:param]
       assert_response :success
+      assert_template 'annotate'
 
       # 1.1 line
       assert_select 'tr' do

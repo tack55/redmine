@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class EnumerationsControllerTest < Redmine::ControllerTest
+class EnumerationsControllerTest < ActionController::TestCase
   fixtures :enumerations, :issues, :users
 
   def setup
@@ -27,7 +27,7 @@ class EnumerationsControllerTest < Redmine::ControllerTest
   def test_index
     get :index
     assert_response :success
-    assert_select 'table.enumerations'
+    assert_template 'index'
   end
 
   def test_index_should_require_admin
@@ -39,7 +39,8 @@ class EnumerationsControllerTest < Redmine::ControllerTest
   def test_new
     get :new, :type => 'IssuePriority'
     assert_response :success
-
+    assert_template 'new'
+    assert_kind_of IssuePriority, assigns(:enumeration)
     assert_select 'input[name=?][value=?]', 'enumeration[type]', 'IssuePriority'
     assert_select 'input[name=?]', 'enumeration[name]'
   end
@@ -63,12 +64,13 @@ class EnumerationsControllerTest < Redmine::ControllerTest
       post :create, :enumeration => {:type => 'IssuePriority', :name => ''}
     end
     assert_response :success
-    assert_select_error /name cannot be blank/i
+    assert_template 'new'
   end
 
   def test_edit
     get :edit, :id => 6
     assert_response :success
+    assert_template 'edit'
     assert_select 'input[name=?][value=?]', 'enumeration[name]', 'High'
   end
 
@@ -91,7 +93,7 @@ class EnumerationsControllerTest < Redmine::ControllerTest
       put :update, :id => 6, :enumeration => {:type => 'IssuePriority', :name => ''}
     end
     assert_response :success
-    assert_select_error /name cannot be blank/i
+    assert_template 'edit'
   end
 
   def test_destroy_enumeration_not_in_use
@@ -107,7 +109,7 @@ class EnumerationsControllerTest < Redmine::ControllerTest
       delete :destroy, :id => 4
     end
     assert_response :success
-
+    assert_template 'destroy'
     assert_not_nil Enumeration.find_by_id(4)
     assert_select 'select[name=reassign_to_id]' do
       assert_select 'option[value="6"]', :text => 'High'

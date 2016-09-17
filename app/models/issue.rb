@@ -54,12 +54,11 @@ class Issue < ActiveRecord::Base
                 :url => Proc.new {|o| {:controller => 'issues', :action => 'show', :id => o.id}},
                 :type => Proc.new {|o| 'issue' + (o.closed? ? ' closed' : '') }
 
-  acts_as_activity_provider :scope => preload(:project, :author, :tracker, :status),
+  acts_as_activity_provider :scope => preload(:project, :author, :tracker),
                             :author_key => :author_id
 
   DONE_RATIO_OPTIONS = %w(issue_field issue_status)
 
-  attr_accessor :deleted_attachment_ids
   attr_reader :current_journal
   delegate :notes, :notes=, :private_notes, :private_notes=, :to => :current_journal, :allow_nil => true
 
@@ -110,7 +109,7 @@ class Issue < ActiveRecord::Base
               :force_updated_on_change, :update_closed_on, :set_assigned_to_was
   after_save {|issue| issue.send :after_project_change if !issue.id_changed? && issue.project_id_changed?}
   after_save :reschedule_following_issues, :update_nested_set_attributes,
-             :update_parent_attributes, :delete_selected_attachments, :create_journal
+             :update_parent_attributes, :create_journal
   # Should be after_create but would be called before previous after_save callbacks
   after_save :after_create_from_copy
   after_destroy :update_parent_attributes
@@ -404,12 +403,8 @@ class Issue < ActiveRecord::Base
     write_attribute(:description, arg)
   end
 
-  def deleted_attachment_ids
-    Array(@deleted_attachment_ids).map(&:to_i)
-  end
-
   # Overrides assign_attributes so that project and tracker get assigned first
-  def assign_attributes(new_attributes, *args)
+  def assign_attributes_with_project_and_tracker_first(new_attributes, *args)
     return if new_attributes.nil?
     attrs = new_attributes.dup
     attrs.stringify_keys!
@@ -419,8 +414,10 @@ class Issue < ActiveRecord::Base
         send "#{attr}=", attrs.delete(attr)
       end
     end
-    super attrs, *args
+    send :assign_attributes_without_project_and_tracker_first, attrs, *args
   end
+  # Do not redefine alias chain on reload (see #4838)
+  alias_method_chain(:assign_attributes, :project_and_tracker_first) unless method_defined?(:assign_attributes_without_project_and_tracker_first)
 
   def attributes=(new_attributes)
     assign_attributes new_attributes
@@ -467,9 +464,6 @@ class Issue < ActiveRecord::Base
   safe_attributes 'parent_issue_id',
     :if => lambda {|issue, user| (issue.new_record? || issue.attributes_editable?(user)) &&
       user.allowed_to?(:manage_subtasks, issue.project)}
-
-  safe_attributes 'deleted_attachment_ids',
-    :if => lambda {|issue, user| issue.attachments_deletable?(user)}
 
   def safe_attribute_names(user=nil)
     names = super
@@ -574,9 +568,8 @@ class Issue < ActiveRecord::Base
 
   # Returns the custom_field_values that can be edited by the given user
   def editable_custom_field_values(user=nil)
-    read_only = read_only_attribute_names(user)
     visible_custom_field_values(user).reject do |value|
-      read_only.include?(value.custom_field_id.to_s)
+      read_only_attribute_names(user).include?(value.custom_field_id.to_s)
     end
   end
 
@@ -861,7 +854,7 @@ class Issue < ActiveRecord::Base
 
   # Users the issue can be assigned to
   def assignable_users
-    users = project.assignable_users(tracker).to_a
+    users = project.assignable_users.to_a
     users << author if author && author.active?
     users << assigned_to if assigned_to
     users.uniq.sort
@@ -899,45 +892,44 @@ class Issue < ActiveRecord::Base
 
   # Returns an array of statuses that user is able to apply
   def new_statuses_allowed_to(user=User.current, include_default=false)
-    initial_status = nil
-    if new_record?
-      # nop
-    elsif tracker_id_changed?
-      if Tracker.where(:id => tracker_id_was, :default_status_id => status_id_was).any?
-        initial_status = default_status
-      elsif tracker.issue_status_ids.include?(status_id_was)
-        initial_status = IssueStatus.find_by_id(status_id_was)
-      else
-        initial_status = default_status
-      end
-    else
-      initial_status = status_was
-    end
-
-    initial_assigned_to_id = assigned_to_id_changed? ? assigned_to_id_was : assigned_to_id
-    assignee_transitions_allowed = initial_assigned_to_id.present? &&
-      (user.id == initial_assigned_to_id || user.group_ids.include?(initial_assigned_to_id))
-
-    statuses = []
-    statuses += IssueStatus.new_statuses_allowed(
-      initial_status,
-      user.admin ? Role.all.to_a : user.roles_for_project(project),
-      tracker,
-      author == user,
-      assignee_transitions_allowed
-    )
-    statuses << initial_status unless statuses.empty?
-    statuses << default_status if include_default || (new_record? && statuses.empty?)
-
     if new_record? && @copied_from
-      statuses << @copied_from.status
-    end
+      [default_status, @copied_from.status].compact.uniq.sort
+    else
+      initial_status = nil
+      if new_record?
+        # nop
+      elsif tracker_id_changed?
+        if Tracker.where(:id => tracker_id_was, :default_status_id => status_id_was).any?
+          initial_status = default_status
+        elsif tracker.issue_status_ids.include?(status_id_was)
+          initial_status = IssueStatus.find_by_id(status_id_was)
+        else
+          initial_status = default_status
+        end
+      else
+        initial_status = status_was
+      end
 
-    statuses = statuses.compact.uniq.sort
-    if blocked?
-      statuses.reject!(&:is_closed?)
+      initial_assigned_to_id = assigned_to_id_changed? ? assigned_to_id_was : assigned_to_id
+      assignee_transitions_allowed = initial_assigned_to_id.present? &&
+        (user.id == initial_assigned_to_id || user.group_ids.include?(initial_assigned_to_id))
+
+      statuses = []
+      statuses += IssueStatus.new_statuses_allowed(
+        initial_status,
+        user.admin ? Role.all.to_a : user.roles_for_project(project),
+        tracker,
+        author == user,
+        assignee_transitions_allowed
+      )
+      statuses << initial_status unless statuses.empty?
+      statuses << default_status if include_default || (new_record? && statuses.empty?)
+      statuses = statuses.compact.uniq.sort
+      if blocked?
+        statuses.reject!(&:is_closed?)
+      end
+      statuses
     end
-    statuses
   end
 
   # Returns the previous assignee (user or group) if changed
@@ -1149,8 +1141,7 @@ class Issue < ActiveRecord::Base
 
   def soonest_start(reload=false)
     if @soonest_start.nil? || reload
-      relations_to.reload if reload
-      dates = relations_to.collect{|relation| relation.successor_soonest_start}
+      dates = relations_to(reload).collect{|relation| relation.successor_soonest_start}
       p = @parent_issue || parent
       if p && Setting.parent_issue_dates == 'derived'
         dates << p.soonest_start
@@ -1554,23 +1545,18 @@ class Issue < ActiveRecord::Base
       end
 
       if p.done_ratio_derived?
-        # done ratio = average ratio of children weighted with their total estimated hours
+        # done ratio = weighted average ratio of leaves
         unless Issue.use_status_for_done_ratio? && p.status && p.status.default_done_ratio
-          children = p.children.to_a
-          if children.any?
-            child_with_total_estimated_hours = children.select {|c| c.total_estimated_hours.to_f > 0.0}
-            if child_with_total_estimated_hours.any?
-              average = child_with_total_estimated_hours.map(&:total_estimated_hours).sum.to_f / child_with_total_estimated_hours.count
-            else
-              average = 1.0
+          child_count = p.children.count
+          if child_count > 0
+            average = p.children.where("estimated_hours > 0").average(:estimated_hours).to_f
+            if average == 0
+              average = 1
             end
-            done = children.map {|c|
-              estimated = c.total_estimated_hours.to_f
-              estimated = average unless estimated > 0.0
-              ratio = c.closed? ? 100 : (c.done_ratio || 0)
-              estimated * ratio
-            }.sum
-            progress = done / (average * children.count)
+            done = p.children.joins(:status).
+              sum("COALESCE(CASE WHEN estimated_hours > 0 THEN estimated_hours ELSE NULL END, #{average}) " +
+                  "* (CASE WHEN is_closed = #{self.class.connection.quoted_true} THEN 100 ELSE COALESCE(done_ratio, 0) END)").to_f
+            progress = done / (average * child_count)
             p.done_ratio = progress.round
           end
         end
@@ -1597,13 +1583,6 @@ class Issue < ActiveRecord::Base
         issue.fixed_version = nil
         issue.save
       end
-    end
-  end
-
-  def delete_selected_attachments
-    if deleted_attachment_ids.present?
-      objects = attachments.where(:id => deleted_attachment_ids.map(&:to_i))
-      attachments.delete(objects)
     end
   end
 

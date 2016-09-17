@@ -17,7 +17,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class AuthSourcesControllerTest < Redmine::ControllerTest
+class AuthSourcesControllerTest < ActionController::TestCase
   fixtures :users, :auth_sources
 
   def setup
@@ -26,12 +26,21 @@ class AuthSourcesControllerTest < Redmine::ControllerTest
 
   def test_index
     get :index
+
     assert_response :success
+    assert_template 'index'
+    assert_not_nil assigns(:auth_sources)
   end
 
   def test_new
     get :new
+
     assert_response :success
+    assert_template 'new'
+
+    source = assigns(:auth_source)
+    assert_equal AuthSourceLdap, source.class
+    assert source.new_record?
 
     assert_select 'form#auth_source_form' do
       assert_select 'input[name=type][value=AuthSourceLdap]'
@@ -63,13 +72,16 @@ class AuthSourcesControllerTest < Redmine::ControllerTest
                     :auth_source => {:name => 'Test', :host => '',
                                      :port => '389', :attr_login => 'cn'}
       assert_response :success
+      assert_template 'new'
     end
     assert_select_error /host cannot be blank/i
   end
 
   def test_edit
     get :edit, :id => 1
+
     assert_response :success
+    assert_template 'edit'
 
     assert_select 'form#auth_source_form' do
       assert_select 'input[name=?]', 'auth_source[host]'
@@ -105,6 +117,7 @@ class AuthSourcesControllerTest < Redmine::ControllerTest
                  :auth_source => {:name => 'Renamed', :host => '',
                                   :port => '389', :attr_login => 'uid'}
     assert_response :success
+    assert_template 'edit'
     assert_select_error /host cannot be blank/i
   end
 
